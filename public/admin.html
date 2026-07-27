@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKPLAY CONNECT - Dashboard Administrateur</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF5722', // Orange OKPLAY
+                        darkBg: '#0F172A',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+
+    <div class="flex min-h-screen">
+        <!-- BARRE LATÉRALE (SIDEBAR) -->
+        <aside class="w-64 bg-white border-r border-slate-200 hidden md:block">
+            <div class="p-6 flex items-center gap-3">
+                <div class="bg-primary text-white p-2 rounded-xl">
+                    <i class="fa-solid fa-car-side text-xl"></i>
+                </div>
+                <span class="font-extrabold text-lg text-slate-900 tracking-wide">OKPLAY <span class="text-primary">CONNECT</span></span>
+            </div>
+
+            <nav class="mt-6 px-4 space-y-1">
+                <a href="#" class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-xl font-bold transition-all">
+                    <i class="fa-solid fa-chart-pie"></i> Dashboard
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all">
+                    <i class="fa-solid fa-users"></i> Utilisateurs
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all">
+                    <i class="fa-solid fa-truck"></i> Livreurs
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all font-semibold">
+                    <i class="fa-solid fa-id-card-clip text-primary"></i> Validation Chauffeurs
+                    <span id="pending-badge" class="ml-auto bg-primary text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all">
+                    <i class="fa-solid fa-gears"></i> Paramètres
+                </a>
+            </nav>
+        </aside>
+
+        <!-- CONTENU PRINCIPAL -->
+        <main class="flex-1 p-6 md:p-10">
+            <!-- EN-TÊTE -->
+            <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-extrabold text-slate-950">Bonjour, Samuel ! 👋</h1>
+                    <p class="text-slate-500 text-sm mt-1">Voici les dossiers chauffeurs en attente de validation.</p>
+                </div>
+                <div class="flex items-center gap-4 self-end md:self-auto">
+                    <button onclick="fetchPendingDrivers()" class="bg-white border border-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 text-sm shadow-sm">
+                        <i class="fa-solid fa-rotate"></i> Actualiser la liste
+                    </button>
+                </div>
+            </header>
+
+            <!-- ZONE TABLEAU DE VALIDATION -->
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+                    <h2 class="font-bold text-slate-900 text-lg">Dossiers en attente d'approbation</h2>
+                    <span class="bg-amber-50 text-amber-600 text-xs font-bold px-3 py-1 rounded-full border border-amber-200">Action requise</span>
+                </div>
+
+                <!-- TABLEAU DE DONNÉES -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-400 font-bold text-xs uppercase tracking-wider border-b border-slate-200">
+                                <th class="p-4 pl-6">Chauffeur</th>
+                                <th class="p-4">Téléphone / Ville</th>
+                                <th class="p-4">Véhicule</th>
+                                <th class="p-4">Documents transmis</th>
+                                <th class="p-4 pr-6 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drivers-table-body" class="divide-y divide-slate-100 text-sm">
+                            <!-- Les lignes de chauffeurs seront injectées ici par JavaScript -->
+                            <tr>
+                                <td colspan="5" class="p-8 text-center text-slate-400">
+                                    <i class="fa-solid fa-spinner fa-spin text-2xl text-primary mb-3"></i>
+                                    <p>Chargement des dossiers en attente...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- LOGIQUE JAVASCRIPT CONNECTÉE À TON API LARAVEL -->
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000/api/v1'; // Mets l'adresse de ton API Laravel
+
+        // Récupérer et lister les chauffeurs en attente
+        async function fetchPendingDrivers() {
+            const tableBody = document.getElementById('drivers-table-body');
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/drivers/pending`);
+                const data = await response.json();
+
+                if (data.success && data.drivers.length > 0) {
+                    document.getElementById('pending-badge').textContent = data.drivers.length;
+                    document.getElementById('pending-badge').classList.remove('hidden');
+                    
+                    tableBody.innerHTML = ''; // Nettoyer
+                    
+                    data.drivers.forEach(driver => {
+                        tableBody.innerHTML += `
+                            <tr class="hover:bg-slate-50/80 transition-all">
+                                <td class="p-4 pl-6">
+                                    <div class="flex items-center gap-3">
+                                        <img class="w-10 h-10 rounded-full object-cover border-2 border-slate-200" src="${driver.selfie_url}" alt="${driver.user?.name}">
+                                        <div>
+                                            <div class="font-bold text-slate-900">${driver.user?.name || 'Nom non défini'}</div>
+                                            <div class="text-xs text-slate-400">Chauffeur enregistré</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="p-4">
+                                    <div class="font-semibold text-slate-700">${driver.user?.phone || 'N/A'}</div>
+                                    <div class="text-xs text-slate-400">Abidjan, Côte d'Ivoire</div>
+                                </td>
+                                <td class="p-4">
+                                    <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-md">
+                                        ${driver.vehicle_brand} ${driver.vehicle_model}
+                                    </span>
+                                    <div class="text-xs text-slate-400 mt-1">Immat: <span class="font-semibold">${driver.vehicle_plate}</span></div>
+                                </td>
+                                <td class="p-4">
+                                    <div class="flex gap-2">
+                                        <a href="${driver.cni_url}" target="_blank" class="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded border border-blue-200 hover:bg-blue-100 transition-all flex items-center gap-1 font-semibold">
+                                            <i class="fa-solid fa-file-pdf"></i> CNI
+                                        </a>
+                                        <a href="${driver.license_url}" target="_blank" class="bg-emerald-50 text-emerald-600 text-xs px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-100 transition-all flex items-center gap-1 font-semibold">
+                                            <i class="fa-solid fa-address-card"></i> Permis
+                                        </a>
+                                    </div>
+                                </td>
+                                <td class="p-4 pr-6 text-right">
+                                    <div class="flex gap-2 justify-end">
+                                        <button onclick="updateDriverStatus('${driver.user_id}', 'rejected')" class="bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all">
+                                            Rejeter
+                                        </button>
+                                        <button onclick="updateDriverStatus('${driver.user_id}', 'approved')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm">
+                                            Approuver
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    document.getElementById('pending-badge').classList.add('hidden');
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="p-12 text-center text-slate-400">
+                                <i class="fa-regular fa-folder-open text-4xl mb-3 block text-slate-300"></i>
+                                Aucun dossier en attente pour le moment !
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                console.error("Erreur API:", error);
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-8 text-center text-rose-500 font-medium">
+                            <i class="fa-solid fa-triangle-exclamation text-xl mb-2"></i><br>
+                            Impossible de se connecter au serveur backend.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Mettre à jour le statut du chauffeur (Approuver/Rejeter)
+        async function updateDriverStatus(userId, status) {
+            let rejectionReason = null;
+            if (status === 'rejected') {
+                rejectionReason = prompt("Veuillez indiquer le motif du refus (ex: Photo de CNI floue) :");
+                if (rejectionReason === null) return; // Annuler l'action si le gérant clique sur Annuler
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/drivers/${userId}/status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        status: status,
+                        rejection_reason: rejectionReason
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert(`Dossier mis à jour : Le chauffeur a été ${status === 'approved' ? 'approuvé' : 'rejeté'} !`);
+                    fetchPendingDrivers(); // Actualiser le tableau
+                } else {
+                    alert(`Erreur : ${result.message}`);
+                }
+            } catch (error) {
+                console.error("Erreur lors de la mise à jour:", error);
+                alert("Une erreur s'est produite lors de la connexion au serveur.");
+            }
+        }
+
+        // Charger les données au démarrage de la page
+        window.onload = fetchPendingDrivers;
+    </script>
+</body>
+</html>
