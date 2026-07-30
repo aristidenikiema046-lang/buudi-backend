@@ -1,0 +1,12 @@
+.git
+node_modules
+vendor
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+tests
+.env
+.env.*
+!.env.docker.example
+docker-compose.yml
