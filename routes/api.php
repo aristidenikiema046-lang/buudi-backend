@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\v1\DriverRideController;
 use App\Http\Controllers\Api\v1\Admin\AdminDriverController;
 use App\Http\Controllers\Api\v1\Client\WalletController;
 use App\Http\Controllers\Api\v1\Client\TransferController;
+use App\Http\Controllers\Api\v1\Client\RideController;
 use App\Http\Controllers\Api\v1\WebhookController;
 
 /*
@@ -78,6 +79,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
 
             Route::post('/transfer', [TransferController::class, 'transfer']);
+
+            Route::post('/rides', [RideController::class, 'store']);
+            Route::get('/rides/{id}', [RideController::class, 'show']);
+            Route::post('/rides/{id}/cancel', [RideController::class, 'cancel']);
         });
     });
 });

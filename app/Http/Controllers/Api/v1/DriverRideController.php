@@ -23,7 +23,7 @@ class DriverRideController extends Controller
         // Recherche une course assignée au chauffeur avec un statut actif
         $ride = Ride::where('driver_id', $user->id)
             ->whereIn('status', ['accepted', 'arrived', 'in_progress'])
-            ->with('client') // relation vers le client
+            ->with('passenger') // relation vers le client
             ->first();
 
         if (!$ride) {
@@ -188,8 +188,8 @@ class DriverRideController extends Controller
         // 2. Traitement Financier du Chauffeur
         $wallet = Wallet::firstOrCreate(['user_id' => $user->id]);
 
-        // Option A : Paiement par Wallet/Wave -> Crédit direct dans le wallet
-        if ($ride->payment_method !== 'cash') {
+        // Option A : Paiement par Wallet/Mobile Money/Carte -> Crédit direct dans le wallet
+        if ($ride->payment_method !== 'especes') {
             $wallet->increment('balance', $ride->price);
 
             Transaction::create([
