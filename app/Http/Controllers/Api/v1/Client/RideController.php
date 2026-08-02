@@ -23,11 +23,20 @@ class RideController extends Controller
             'destination_lat' => 'required|numeric',
             'destination_lng' => 'required|numeric',
             'destination_address' => 'required|string|max:255',
-            'service_type' => 'required|string|in:OK Taxi,OK Confort,OK Van',
+            'service_type' => 'required|string|in:OK Taxi,OK Confort,OK Van,Livraison',
             'payment_method' => 'required|string|in:wallet,mobile_money,carte,especes',
             'estimated_price' => 'required|numeric|min:0',
             'estimated_distance_km' => 'required|numeric|min:0',
             'estimated_duration_min' => 'required|integer|min:0',
+            // Uniquement pertinents quand service_type = "Livraison", mais
+            // optionnels dans tous les cas (pas de règle conditionnelle) :
+            // ils restent simplement vides pour une course VTC classique.
+            'recipient_name' => 'nullable|string|max:255',
+            'recipient_phone' => 'nullable|string|max:20',
+            'package_type' => 'nullable|string|max:255',
+            'package_weight_kg' => 'nullable|numeric|min:0',
+            'package_code' => 'nullable|string|max:255',
+            'delivery_instructions' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -52,6 +61,12 @@ class RideController extends Controller
             'duration_min' => $request->estimated_duration_min,
             'payment_method' => $request->payment_method,
             'status' => 'pending',
+            'recipient_name' => $request->recipient_name,
+            'recipient_phone' => $request->recipient_phone,
+            'package_type' => $request->package_type,
+            'package_weight_kg' => $request->package_weight_kg,
+            'package_code' => $request->package_code,
+            'delivery_instructions' => $request->delivery_instructions,
         ]);
 
         return response()->json([

@@ -6,10 +6,15 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\v1\DriverRegisterController;
 use App\Http\Controllers\Api\v1\DriverProfileController;
 use App\Http\Controllers\Api\v1\DriverRideController;
+use App\Http\Controllers\Api\v1\MerchantRegisterController;
 use App\Http\Controllers\Api\v1\Admin\AdminDriverController;
+use App\Http\Controllers\Api\v1\Admin\AdminMerchantController;
 use App\Http\Controllers\Api\v1\Client\WalletController;
 use App\Http\Controllers\Api\v1\Client\TransferController;
 use App\Http\Controllers\Api\v1\Client\RideController;
+use App\Http\Controllers\Api\v1\Client\ProfileController;
+use App\Http\Controllers\Api\v1\Merchant\WalletController as MerchantWalletController;
+use App\Http\Controllers\Api\v1\Merchant\ProfileController as MerchantProfileController;
 use App\Http\Controllers\Api\v1\WebhookController;
 
 /*
@@ -45,30 +50,40 @@ Route::prefix('v1')->group(function () {
     // --- CHAUFFEURS (Inscription publique) ---
     Route::post('/driver/register', [DriverRegisterController::class, 'register']);
 
+    // --- COMMERÇANTS (Inscription publique) ---
+    Route::post('/merchant/register', [MerchantRegisterController::class, 'register']);
+
     // --- ROUTES PROTÉGÉES PAR JWT ---
     Route::middleware('auth:api')->group(function () {
         
-        // Profil, Statut du chauffeur & Pass
-        Route::get('/driver/profile', [DriverProfileController::class, 'show']);
-        Route::get('/driver/status', [DriverProfileController::class, 'checkStatus']);
-        Route::post('/driver/toggle-status', [DriverProfileController::class, 'toggleOnlineStatus']);
-        Route::post('/driver/buy-pass', [DriverProfileController::class, 'buyPass']);
+        // Profil, Statut du chauffeur & Pass (rôle "driver" uniquement)
+        Route::get('/driver/profile', [DriverProfileController::class, 'show'])->middleware('role:driver');
+        Route::get('/driver/status', [DriverProfileController::class, 'checkStatus'])->middleware('role:driver');
+        Route::post('/driver/toggle-status', [DriverProfileController::class, 'toggleOnlineStatus'])->middleware('role:driver');
+        Route::post('/driver/buy-pass', [DriverProfileController::class, 'buyPass'])->middleware('role:driver');
 
-        // --- DASHBOARD & COURSES (v1) ---
-        Route::get('/driver/dashboard', [DriverRideController::class, 'getDashboard']);
-        Route::get('/driver/active-ride', [DriverRideController::class, 'getActiveRide']);
-        Route::post('/driver/rides/{id}/accept', [DriverRideController::class, 'acceptRide']);
-        Route::post('/driver/rides/{id}/arrive', [DriverRideController::class, 'arriveAtPickup']);
-        Route::post('/driver/rides/{id}/start', [DriverRideController::class, 'startRide']);
-        Route::post('/driver/rides/{id}/complete', [DriverRideController::class, 'completeRide']);
+        // --- DASHBOARD & COURSES (v1) — rôle "driver" uniquement ---
+        Route::get('/driver/dashboard', [DriverRideController::class, 'getDashboard'])->middleware('role:driver');
+        Route::get('/driver/active-ride', [DriverRideController::class, 'getActiveRide'])->middleware('role:driver');
+        Route::get('/driver/rides/pending', [DriverRideController::class, 'getPendingRides'])->middleware('role:driver');
+        Route::post('/driver/rides/{id}/accept', [DriverRideController::class, 'acceptRide'])->middleware('role:driver');
+        Route::post('/driver/rides/{id}/arrive', [DriverRideController::class, 'arriveAtPickup'])->middleware('role:driver');
+        Route::post('/driver/rides/{id}/start', [DriverRideController::class, 'startRide'])->middleware('role:driver');
+        Route::post('/driver/rides/{id}/complete', [DriverRideController::class, 'completeRide'])->middleware('role:driver');
+        Route::post('/driver/rides/{id}/cancel', [DriverRideController::class, 'cancelRide'])->middleware('role:driver');
 
         // Mise à jour Token FCM
         Route::post('/update-fcm-token', [AuthController::class, 'updateFcmToken']);
         
-        // --- ADMINISTRATION PROTÉGÉE ---
-        Route::prefix('admin')->group(function () {
+        // --- ADMINISTRATION PROTÉGÉE (rôle "admin" uniquement — ajouté ici,
+        // couvrait auparavant seulement auth:api, n'importe quel compte
+        // connecté pouvait donc appeler ces routes) ---
+        Route::prefix('admin')->middleware('role:admin')->group(function () {
             Route::get('/drivers/pending', [AdminDriverController::class, 'getPendingDrivers']);
             Route::post('/drivers/{id}/status', [AdminDriverController::class, 'updateStatus']);
+
+            Route::get('/merchants/pending', [AdminMerchantController::class, 'getPendingMerchants']);
+            Route::post('/merchants/{id}/status', [AdminMerchantController::class, 'updateStatus']);
         });
 
         // --- CLIENT : PORTEFEUILLE & TRANSFERTS (rôle "client" uniquement) ---
@@ -83,6 +98,18 @@ Route::prefix('v1')->group(function () {
             Route::post('/rides', [RideController::class, 'store']);
             Route::get('/rides/{id}', [RideController::class, 'show']);
             Route::post('/rides/{id}/cancel', [RideController::class, 'cancel']);
+
+            Route::get('/profile', [ProfileController::class, 'show']);
+            Route::put('/profile', [ProfileController::class, 'update']);
+        });
+
+        // --- COMMERÇANT : PORTEFEUILLE & PROFIL (rôle "merchant" uniquement) ---
+        Route::prefix('merchant')->middleware('role:merchant')->group(function () {
+            Route::get('/wallet', [MerchantWalletController::class, 'show']);
+            Route::get('/wallet/transactions', [MerchantWalletController::class, 'transactions']);
+
+            Route::get('/profile', [MerchantProfileController::class, 'show']);
+            Route::put('/profile', [MerchantProfileController::class, 'update']);
         });
     });
 });

@@ -31,10 +31,13 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $loginInput = $request->login;
+        $loginInput = trim($request->login);
 
-        // Recherche de l'utilisateur par e-mail OU par téléphone
-        $user = User::where('email', $loginInput)
+        // Recherche de l'utilisateur par e-mail OU par téléphone.
+        // L'email est comparé en minuscules (PostgreSQL est sensible à la
+        // casse) : sans ça, "Test@Gmail.com" et "test@gmail.com" seraient
+        // considérés comme deux comptes différents.
+        $user = User::where('email', strtolower($loginInput))
                     ->orWhere('phone', $loginInput)
                     ->first();
 
@@ -59,6 +62,12 @@ class AuthController extends Controller
     // --- ÉTAPE 1 - ENVOI DU CODE OTP PAR EMAIL POUR CLIENT ---
     public function sendOtp(Request $request)
     {
+        // Normalisation AVANT validation, pour que la vérification d'unicité
+        // et le stockage utilisent la même valeur (voir explication dans login()).
+        if ($request->has('email')) {
+            $request->merge(['email' => strtolower(trim($request->email))]);
+        }
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|email|unique:users,email',
         ]);
@@ -103,6 +112,10 @@ class AuthController extends Controller
     // --- ÉTAPE 2 & 4 - VÉRIFICATION ET CRÉATION DU COMPTE CLIENT ---
     public function verifyAndRegisterClient(Request $request)
     {
+        if ($request->has('email')) {
+            $request->merge(['email' => strtolower(trim($request->email))]);
+        }
+
         $validator = Validator::make($request->all(), [
             'name'       => 'required|string|max:255',
             'phone'      => 'nullable|string|unique:users,phone', // Rendu optionnel pour éviter le blocage

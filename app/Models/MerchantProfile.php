@@ -13,10 +13,12 @@ class MerchantProfile extends Model
     protected $fillable = [
         'user_id',
         'status',
+        'commission_rate',
         'business_name',
         'business_type',
         'business_address',
         'business_phone',
+        'logo_url',
         'rejection_reason',
     ];
 
