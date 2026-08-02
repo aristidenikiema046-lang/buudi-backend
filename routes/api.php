@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\v1\Client\RideController;
 use App\Http\Controllers\Api\v1\Client\ProfileController;
 use App\Http\Controllers\Api\v1\Merchant\WalletController as MerchantWalletController;
 use App\Http\Controllers\Api\v1\Merchant\ProfileController as MerchantProfileController;
+use App\Http\Controllers\Api\v1\Merchant\PaymentRequestController as MerchantPaymentRequestController;
+use App\Http\Controllers\Api\v1\PaymentRequestController;
 use App\Http\Controllers\Api\v1\WebhookController;
 
 /*
@@ -110,13 +112,19 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/profile', [MerchantProfileController::class, 'show']);
             Route::put('/profile', [MerchantProfileController::class, 'update']);
+
+            Route::post('/payment-requests', [MerchantPaymentRequestController::class, 'store']);
         });
     });
+
+    // --- DEMANDE DE PAIEMENT : consultation publique, sans auth (le lien est
+    // partagé au payeur final, qui n'a pas forcément de compte Buudi) ---
+    Route::get('/payment-requests/{token}', [PaymentRequestController::class, 'show']);
 });
 
 // ==========================================
-// WEBHOOKS PUBLICS (appelés par les opérateurs mobile money, pas par Flutter)
+// WEBHOOKS PUBLICS (appelés par les fournisseurs de paiement, pas par Flutter)
 // ==========================================
 Route::prefix('v1/webhooks')->group(function () {
-    Route::post('/mobile-money/{operator}', [WebhookController::class, 'handle']);
+    Route::post('/mobile-money/{provider}', [WebhookController::class, 'handle']);
 });

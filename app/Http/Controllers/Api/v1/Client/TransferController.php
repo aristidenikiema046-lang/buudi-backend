@@ -24,7 +24,10 @@ class TransferController extends Controller
     public function transfer(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'operator' => 'required|string|in:wave,orange,mtn,moov',
+            // Identifiants alignés sur config('services.payment_providers') —
+            // wave/orange_money/mtn_momo/moov_money, ou aggregator_dexchange
+            // si un agrégateur est choisi à la place des opérateurs directs.
+            'operator' => 'required|string|in:wave,orange_money,mtn_momo,moov_money,aggregator_dexchange',
             'phone_number' => 'required|string|max:20',
             'amount' => 'required|numeric|min:1',
         ]);
