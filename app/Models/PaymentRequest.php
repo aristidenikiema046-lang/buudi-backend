@@ -12,6 +12,7 @@ class PaymentRequest extends Model
 
     protected $fillable = [
         'merchant_id',
+        'payer_id',
         'token',
         'amount',
         'description',
@@ -29,6 +30,11 @@ class PaymentRequest extends Model
     public function merchant()
     {
         return $this->belongsTo(User::class, 'merchant_id');
+    }
+
+    public function payer()
+    {
+        return $this->belongsTo(User::class, 'payer_id');
     }
 
     /**

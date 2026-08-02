@@ -115,6 +115,13 @@ Route::prefix('v1')->group(function () {
 
             Route::post('/payment-requests', [MerchantPaymentRequestController::class, 'store']);
         });
+
+        // Paiement wallet-à-wallet d'une demande de paiement — pas sous
+        // /client/... par choix : l'URL suit la ressource publique
+        // /v1/payment-requests/{token}, seule l'action d'écriture exige
+        // d'être connecté en tant que client.
+        Route::post('/payment-requests/{token}/pay-with-wallet', [PaymentRequestController::class, 'payWithWallet'])
+            ->middleware('role:client');
     });
 
     // --- DEMANDE DE PAIEMENT : consultation publique, sans auth (le lien est
