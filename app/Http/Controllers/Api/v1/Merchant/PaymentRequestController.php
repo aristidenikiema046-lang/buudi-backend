@@ -12,21 +12,70 @@ use Illuminate\Support\Str;
 class PaymentRequestController extends Controller
 {
     /**
-     * POST /v1/merchant/payment-requests — Crée une demande de paiement
-     * partageable. Expire 24h après sa création. Le vrai paiement (webhook
-     * mobile money réel ou transfert wallet-à-wallet) n'est pas encore
-     * branché — voir GET /v1/payment-requests/{token} pour la suite prévue.
+     * Bloque tant que le dossier n'est pas "approved" — même garde-fou que
+     * MerchantWalletController, dupliqué ici plutôt que factorisé (méthode
+     * privée de 5 lignes, cohérent avec le reste du code qui préfère la
+     * petite duplication à une abstraction partagée pour si peu).
      */
-    public function store(Request $request)
+    private function requireApprovedMerchant(): ?\Illuminate\Http\JsonResponse
     {
-        // Même garde-fou que WalletController : inutile de générer des
-        // demandes de paiement pour un dossier pas encore validé.
         $merchantProfile = Auth::user()->merchantProfile;
+
         if (!$merchantProfile || $merchantProfile->status !== 'approved') {
             return response()->json([
                 'success' => false,
                 'message' => 'Votre compte est en attente d\'approbation par l\'administration.',
             ], 403);
+        }
+
+        return null;
+    }
+
+    /**
+     * GET /v1/merchant/payment-requests — Liste paginée des demandes créées
+     * par le marchand connecté, les plus récentes en premier. Les 3 statuts
+     * (pending/paid/expired) sont mélangés, pas de filtre par défaut.
+     */
+    public function index(Request $request)
+    {
+        if ($blocked = $this->requireApprovedMerchant()) {
+            return $blocked;
+        }
+
+        $paymentRequests = PaymentRequest::where('merchant_id', Auth::id())
+            // "id" en critère secondaire : deux demandes créées dans la même
+            // seconde ont un created_at identique (pas de microsecondes en
+            // base), sinon leur ordre entre elles serait indéterminé. Les
+            // UUID générés par HasUuids sont ordonnés (ordered UUID), donc
+            // trier par id départage dans le vrai ordre de création.
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(20)
+            ->through(fn (PaymentRequest $pr) => [
+                'token' => $pr->token,
+                'amount' => (float) $pr->amount,
+                'description' => $pr->description,
+                'status' => $pr->status,
+                'expires_at' => $pr->expires_at,
+                'created_at' => $pr->created_at,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $paymentRequests,
+        ], 200);
+    }
+
+    /**
+     * POST /v1/merchant/payment-requests — Crée une demande de paiement
+     * partageable. Expire 24h après sa création. Le payeur peut régler soit
+     * par mobile money externe (pas encore branché), soit avec son wallet
+     * Buudi (voir PaymentRequestController::payWithWallet, déjà en place).
+     */
+    public function store(Request $request)
+    {
+        if ($blocked = $this->requireApprovedMerchant()) {
+            return $blocked;
         }
 
         $validator = Validator::make($request->all(), [

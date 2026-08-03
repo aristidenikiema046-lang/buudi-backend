@@ -113,6 +113,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/profile', [MerchantProfileController::class, 'show']);
             Route::put('/profile', [MerchantProfileController::class, 'update']);
 
+            Route::get('/payment-requests', [MerchantPaymentRequestController::class, 'index']);
             Route::post('/payment-requests', [MerchantPaymentRequestController::class, 'store']);
         });
 
