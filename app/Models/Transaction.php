@@ -13,7 +13,7 @@ class Transaction extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
-    protected $fillable = ['wallet_id', 'amount', 'type', 'category', 'description', 'reference_id'];
+    protected $fillable = ['wallet_id', 'amount', 'type', 'category', 'description', 'reference_id', 'status', 'external_reference'];
 
     protected static function boot()
     {

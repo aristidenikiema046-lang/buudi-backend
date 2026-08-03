@@ -26,6 +26,9 @@ class DriverProfileController extends Controller
                 'phone' => $user->phone,
                 'email' => $user->email,
                 // Informations provenant de la relation driverProfile (ou valeurs par défaut)
+                // vehicle_type ("Voiture"/"Moto"/"Vélo") permet à buudi_partner_app
+                // de choisir le bon parcours (Chauffeur ou Livreur) après connexion.
+                'vehicle_type' => $profile->vehicle_type ?? null,
                 'vehicle_model' => $profile->vehicle_model ?? $profile->vehicle ?? 'Véhicule non renseigné',
                 'plate_number' => $profile->plate_number ?? '--------',
                 'rating' => $profile->rating ?? '5.0',

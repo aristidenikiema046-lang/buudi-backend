@@ -68,6 +68,19 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Relation avec le profil Commerçant
+     */
+    public function merchantProfile()
+    {
+        return $this->hasOne(MerchantProfile::class, 'user_id');
+    }
+
+    public function wallet()
+    {
+        return $this->hasOne(Wallet::class, 'user_id');
+    }
+
+    /**
      * Relations Financières (Abonnement, Dettes, Transactions)
      */
     public function subscriptions()
