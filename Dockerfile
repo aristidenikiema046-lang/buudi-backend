@@ -52,8 +52,13 @@ COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache-custom.ini
 COPY docker/php/www.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-RUN chmod +x /usr/local/bin/entrypoint.sh \
-    && chown -R www-data:www-data storage bootstrap/cache
+# Copie figee de public/ (assets Vite compiles inclus), en dehors du chemin
+# ./public : au demarrage, le service "app" partage ./public avec nginx via un
+# volume nomme, qui sinon garderait le contenu perime d'un deploiement
+# precedent au lieu de celui de cette image. Voir docker/entrypoint.sh.
+RUN cp -a public public-dist \
+    && chmod +x /usr/local/bin/entrypoint.sh \
+    && chown -R www-data:www-data storage bootstrap/cache public-dist
 
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["php-fpm"]
