@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\PaymentWebhookLog;
 use App\Models\Transaction;
 use App\Models\Wallet;
@@ -118,6 +119,28 @@ class WebhookController extends Controller
             if ($status === 'failed') {
                 // Le transfert a échoué côté fournisseur : on recrédite le client.
                 Wallet::where('id', $locked->wallet_id)->lockForUpdate()->increment('balance', $locked->amount);
+            }
+
+            // Notification in-app best-effort — n'affecte en rien la logique
+            // de statut/webhook ci-dessus, uniquement un dispatch en plus.
+            $walletUserId = Wallet::where('id', $locked->wallet_id)->value('user_id');
+
+            if ($walletUserId && $status === 'completed') {
+                CreateNotificationJob::dispatch(
+                    $walletUserId,
+                    'wallet_transaction',
+                    'Transfert confirmé',
+                    "Votre transfert de {$locked->amount} XOF a été confirmé.",
+                    ['transaction_id' => $locked->id, 'amount' => (float) $locked->amount, 'status' => 'completed']
+                );
+            } elseif ($walletUserId && $status === 'failed') {
+                CreateNotificationJob::dispatch(
+                    $walletUserId,
+                    'wallet_transaction',
+                    'Transfert échoué',
+                    "Votre transfert de {$locked->amount} XOF a échoué, le montant a été recrédité sur votre portefeuille.",
+                    ['transaction_id' => $locked->id, 'amount' => (float) $locked->amount, 'status' => 'failed']
+                );
             }
 
             $log->update(['result' => 'processed']);

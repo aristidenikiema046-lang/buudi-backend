@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\MerchantProfile;
 use Illuminate\Http\Request;
 
@@ -54,6 +55,19 @@ class AdminMerchantController extends Controller
             'status' => $request->status,
             'rejection_reason' => $request->rejection_reason,
         ]);
+
+        // Notification in-app — même traitement que côté chauffeur pour la
+        // cohérence utilisateur final, même si aucune notification
+        // (email/FCM) n'existait déjà pour les marchands avant ce jour.
+        CreateNotificationJob::dispatch(
+            $merchantProfile->user_id,
+            'account_status_changed',
+            $request->status === 'approved' ? 'Compte validé' : 'Compte non validé',
+            $request->status === 'approved'
+                ? 'Votre compte commerçant a été validé.'
+                : ('Votre dossier n\'a pas été validé. Motif : ' . ($request->rejection_reason ?? 'Non spécifié')),
+            ['new_status' => $request->status]
+        );
 
         return response()->json([
             'success' => true,

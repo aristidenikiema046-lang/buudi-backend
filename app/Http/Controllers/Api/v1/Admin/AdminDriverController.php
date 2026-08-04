@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\DriverProfile;
 use App\Models\User;
 use App\Notifications\DriverAccountStatusUpdated;
@@ -75,6 +76,17 @@ class AdminDriverController extends Controller
 
                 // 2. Envoi de la Notification Push FCM
                 $notification->sendFcmNotification($user, $messaging);
+
+                // 3. Notification in-app (badge côté Flutter)
+                CreateNotificationJob::dispatch(
+                    $user->id,
+                    'account_status_changed',
+                    $request->status === 'approved' ? 'Compte validé' : 'Compte non validé',
+                    $request->status === 'approved'
+                        ? 'Votre compte chauffeur a été validé.'
+                        : ('Votre dossier n\'a pas été validé. Motif : ' . ($request->rejection_reason ?? 'Non spécifié')),
+                    ['new_status' => $request->status]
+                );
             } catch (\Exception $e) {
                 // Évite de bloquer la réponse API si l'envoi réseau échoue
                 \Log::error("Erreur d'envoi de notification chauffeur : " . $e->getMessage());

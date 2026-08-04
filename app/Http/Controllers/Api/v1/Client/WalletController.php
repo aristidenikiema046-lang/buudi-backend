@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1\Client;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use Illuminate\Http\Request;
@@ -72,6 +73,14 @@ class WalletController extends Controller
             ]);
         });
 
+        CreateNotificationJob::dispatch(
+            $userId,
+            'wallet_transaction',
+            'Dépôt effectué',
+            "Votre portefeuille a été crédité de {$transaction->amount} XOF.",
+            ['transaction_id' => $transaction->id, 'amount' => (float) $transaction->amount]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Dépôt effectué avec succès.',
@@ -127,6 +136,14 @@ class WalletController extends Controller
             }
             throw $e;
         }
+
+        CreateNotificationJob::dispatch(
+            $userId,
+            'wallet_transaction',
+            'Retrait effectué',
+            "Un retrait de {$transaction->amount} XOF a été effectué depuis votre portefeuille.",
+            ['transaction_id' => $transaction->id, 'amount' => (float) $transaction->amount]
+        );
 
         return response()->json([
             'success' => true,

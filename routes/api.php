@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\v1\DriverRegisterController;
 use App\Http\Controllers\Api\v1\DriverProfileController;
 use App\Http\Controllers\Api\v1\DriverRideController;
 use App\Http\Controllers\Api\v1\MessageController;
+use App\Http\Controllers\Api\v1\NotificationController;
 use App\Http\Controllers\Api\v1\MerchantRegisterController;
 use App\Http\Controllers\Api\v1\Admin\AdminDriverController;
 use App\Http\Controllers\Api\v1\Admin\AdminMerchantController;
@@ -88,6 +89,13 @@ Route::prefix('v1')->group(function () {
         // (seuls passenger_id/driver_id de la course peuvent lire/écrire).
         Route::post('/rides/{ride}/messages', [MessageController::class, 'store']);
         Route::get('/rides/{ride}/messages', [MessageController::class, 'index']);
+
+        // --- NOTIFICATIONS IN-APP — communes à tous les rôles connectés,
+        // pas de middleware role:... (client, driver, merchant en ont tous) ---
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 
         // --- ADMINISTRATION PROTÉGÉE (rôle "admin" uniquement — ajouté ici,
         // couvrait auparavant seulement auth:api, n'importe quel compte

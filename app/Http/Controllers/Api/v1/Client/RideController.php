@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1\Client;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\Ride;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -126,6 +127,19 @@ class RideController extends Controller
             'status' => 'cancelled',
             'cancelled_at' => now(),
         ]);
+
+        // Seule exception à "on ne notifie que le passager" (voir DriverRideController) :
+        // ici c'est le passager qui agit, donc le destinataire est le chauffeur —
+        // s'il y en avait déjà un d'assigné (sinon rien à notifier).
+        if ($ride->driver_id) {
+            CreateNotificationJob::dispatch(
+                $ride->driver_id,
+                'ride_status_changed',
+                'Course annulée',
+                'Le client a annulé la course.',
+                ['ride_id' => $ride->id, 'new_status' => 'cancelled']
+            );
+        }
 
         return response()->json([
             'success' => true,

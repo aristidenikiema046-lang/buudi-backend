@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -223,6 +224,14 @@ class DriverRideController extends Controller
                 'accepted_at' => now(),
             ]);
 
+            CreateNotificationJob::dispatch(
+                $ride->passenger_id,
+                'ride_status_changed',
+                'Chauffeur trouvé',
+                'Un chauffeur a accepté votre course.',
+                ['ride_id' => $ride->id, 'new_status' => 'accepted']
+            );
+
             return ['ride' => $ride];
         });
 
@@ -266,6 +275,14 @@ class DriverRideController extends Controller
                     'status'       => 'cancelled',
                     'cancelled_at' => now(),
                 ]);
+
+                CreateNotificationJob::dispatch(
+                    $ride->passenger_id,
+                    'ride_status_changed',
+                    'Course annulée',
+                    'Votre course a été annulée par le chauffeur.',
+                    ['ride_id' => $ride->id, 'new_status' => 'cancelled']
+                );
             } else {
                 $ride->update([
                     'status'      => 'pending',
@@ -273,6 +290,14 @@ class DriverRideController extends Controller
                     'accepted_at' => null,
                     'arrived_at'  => null,
                 ]);
+
+                CreateNotificationJob::dispatch(
+                    $ride->passenger_id,
+                    'ride_status_changed',
+                    'Chauffeur indisponible',
+                    'Votre chauffeur a annulé, nous recherchons un nouveau chauffeur pour vous.',
+                    ['ride_id' => $ride->id, 'new_status' => 'pending']
+                );
             }
 
             return ['ride' => $ride];
@@ -310,6 +335,14 @@ class DriverRideController extends Controller
             'arrived_at' => now(),
         ]);
 
+        CreateNotificationJob::dispatch(
+            $ride->passenger_id,
+            'ride_status_changed',
+            'Chauffeur arrivé',
+            'Votre chauffeur est arrivé au point de départ.',
+            ['ride_id' => $ride->id, 'new_status' => 'arrived']
+        );
+
         return response()->json(['success' => true, 'message' => 'Statut : Arrivé sur place', 'ride' => $ride], 200);
     }
 
@@ -329,6 +362,14 @@ class DriverRideController extends Controller
             'status'     => 'in_progress',
             'started_at' => now(),
         ]);
+
+        CreateNotificationJob::dispatch(
+            $ride->passenger_id,
+            'ride_status_changed',
+            'Course démarrée',
+            'Votre course a commencé.',
+            ['ride_id' => $ride->id, 'new_status' => 'in_progress']
+        );
 
         return response()->json(['success' => true, 'message' => 'Course démarrée !', 'ride' => $ride], 200);
     }
@@ -383,6 +424,14 @@ class DriverRideController extends Controller
                 'due_date'  => now()->addHours(24), // Exigible sous 24h
             ]);
         }
+
+        CreateNotificationJob::dispatch(
+            $ride->passenger_id,
+            'ride_status_changed',
+            'Course terminée',
+            "Votre course est terminée. Merci d'avoir utilisé Buudi !",
+            ['ride_id' => $ride->id, 'new_status' => 'completed']
+        );
 
         return response()->json([
             'success' => true,

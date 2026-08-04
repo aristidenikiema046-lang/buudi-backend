@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\PaymentRequest;
 use App\Models\Transaction;
 use App\Models\Wallet;
@@ -148,6 +149,16 @@ class PaymentRequestController extends Controller
                 'payer_id' => $user->id,
                 'transaction_id' => $merchantTransaction->id,
             ]);
+
+            // Notifie uniquement le marchand (réception du paiement) — pas
+            // le client sur son propre débit, comme décidé.
+            CreateNotificationJob::dispatch(
+                $merchant->id,
+                'wallet_transaction',
+                'Paiement reçu',
+                "Vous avez reçu un paiement de {$netAmount} XOF" . ($paymentRequest->description ? " — {$paymentRequest->description}" : '') . '.',
+                ['transaction_id' => $merchantTransaction->id, 'amount' => (float) $netAmount, 'payment_request_id' => $paymentRequest->id]
+            );
 
             return ['payment_request' => $paymentRequest];
         });
