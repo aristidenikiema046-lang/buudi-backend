@@ -38,12 +38,19 @@ class DriverRideController extends Controller
      * Types de course qu'un véhicule donné peut honorer. Une Voiture peut
      * prendre n'importe quel niveau de VTC, une Moto/Vélo ne peut faire que
      * de la livraison de colis (pas de passager).
+     *
+     * "Supermarché" est ouvert aux deux : au lancement les paniers restent
+     * une sélection curée de quelques dizaines de références (pas un
+     * hypermarché complet), donc une Moto/Vélo peut généralement l'honorer
+     * comme pour Livraison — mais rien n'empêche une Voiture de le faire
+     * aussi, ce qui élargit le pool de chauffeurs disponibles pendant que
+     * peu de chauffeurs dédiés existent encore.
      */
     private function allowedServiceTypesFor(?string $vehicleType): array
     {
         return match ($vehicleType) {
-            'Voiture' => ['OK Taxi', 'OK Confort', 'OK Van'],
-            'Moto', 'Vélo' => ['Livraison'],
+            'Voiture' => ['OK Taxi', 'OK Confort', 'OK Van', 'Supermarché'],
+            'Moto', 'Vélo' => ['Livraison', 'Supermarché'],
             default => [],
         };
     }

@@ -17,13 +17,30 @@ class MerchantProfile extends Model
         'business_name',
         'business_type',
         'business_address',
+        'business_latitude',
+        'business_longitude',
         'business_phone',
         'logo_url',
+        'is_supermarket',
         'rejection_reason',
+    ];
+
+    protected $casts = [
+        'is_supermarket' => 'boolean',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
     }
 }

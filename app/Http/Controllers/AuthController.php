@@ -102,11 +102,16 @@ class AuthController extends Controller
             ], 500);
         }
         
-        return response()->json([
+        $response = [
             'success' => true,
             'message' => 'Code de vérification envoyé avec succès par e-mail.',
-            'debug_otp' => $otpCode // Optionnel : pratique pour tester
-        ], 200);
+        ];
+
+        if (app()->environment(['local', 'testing'])) {
+            $response['debug_otp'] = $otpCode;
+        }
+
+        return response()->json($response, 200);
     }
 
     // --- ÉTAPE 2 & 4 - VÉRIFICATION ET CRÉATION DU COMPTE CLIENT ---

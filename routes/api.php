@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\v1\DriverRegisterController;
 use App\Http\Controllers\Api\v1\DriverProfileController;
 use App\Http\Controllers\Api\v1\DriverRideController;
+use App\Http\Controllers\Api\v1\MessageController;
 use App\Http\Controllers\Api\v1\MerchantRegisterController;
 use App\Http\Controllers\Api\v1\Admin\AdminDriverController;
 use App\Http\Controllers\Api\v1\Admin\AdminMerchantController;
@@ -13,10 +14,14 @@ use App\Http\Controllers\Api\v1\Client\WalletController;
 use App\Http\Controllers\Api\v1\Client\TransferController;
 use App\Http\Controllers\Api\v1\Client\RideController;
 use App\Http\Controllers\Api\v1\Client\ProfileController;
+use App\Http\Controllers\Api\v1\Client\OrderController as ClientOrderController;
 use App\Http\Controllers\Api\v1\Merchant\WalletController as MerchantWalletController;
 use App\Http\Controllers\Api\v1\Merchant\ProfileController as MerchantProfileController;
 use App\Http\Controllers\Api\v1\Merchant\PaymentRequestController as MerchantPaymentRequestController;
+use App\Http\Controllers\Api\v1\Merchant\ProductController as MerchantProductController;
+use App\Http\Controllers\Api\v1\Merchant\OrderController as MerchantOrderController;
 use App\Http\Controllers\Api\v1\PaymentRequestController;
+use App\Http\Controllers\Api\v1\SupermarketController;
 use App\Http\Controllers\Api\v1\WebhookController;
 
 /*
@@ -76,7 +81,14 @@ Route::prefix('v1')->group(function () {
 
         // Mise à jour Token FCM
         Route::post('/update-fcm-token', [AuthController::class, 'updateFcmToken']);
-        
+
+        // --- MESSAGERIE CLIENT ↔ CHAUFFEUR/LIVREUR liée à une course ---
+        // Pas de middleware role:... : client ET driver doivent tous les
+        // deux y accéder, le contrôle d'accès se fait dans le contrôleur
+        // (seuls passenger_id/driver_id de la course peuvent lire/écrire).
+        Route::post('/rides/{ride}/messages', [MessageController::class, 'store']);
+        Route::get('/rides/{ride}/messages', [MessageController::class, 'index']);
+
         // --- ADMINISTRATION PROTÉGÉE (rôle "admin" uniquement — ajouté ici,
         // couvrait auparavant seulement auth:api, n'importe quel compte
         // connecté pouvait donc appeler ces routes) ---
@@ -101,6 +113,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/rides/{id}', [RideController::class, 'show']);
             Route::post('/rides/{id}/cancel', [RideController::class, 'cancel']);
 
+            // Commande Supermarché — la course de livraison n'est PAS créée
+            // ici : elle naît plus tard, côté serveur, quand le supermarché
+            // confirme (voir Merchant\OrderController::confirm).
+            Route::post('/orders', [ClientOrderController::class, 'store']);
+
             Route::get('/profile', [ProfileController::class, 'show']);
             Route::put('/profile', [ProfileController::class, 'update']);
         });
@@ -115,6 +132,16 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/payment-requests', [MerchantPaymentRequestController::class, 'index']);
             Route::post('/payment-requests', [MerchantPaymentRequestController::class, 'store']);
+
+            // Catalogue Supermarché — réservé aux comptes avec
+            // is_supermarket=true (garde-fou dans les contrôleurs eux-mêmes,
+            // pas seulement au niveau des routes).
+            Route::get('/products', [MerchantProductController::class, 'index']);
+            Route::post('/products', [MerchantProductController::class, 'store']);
+            Route::put('/products/{id}', [MerchantProductController::class, 'update']);
+
+            Route::get('/orders', [MerchantOrderController::class, 'index']);
+            Route::post('/orders/{id}/confirm', [MerchantOrderController::class, 'confirm']);
         });
 
         // Paiement wallet-à-wallet d'une demande de paiement — pas sous
@@ -128,6 +155,11 @@ Route::prefix('v1')->group(function () {
     // --- DEMANDE DE PAIEMENT : consultation publique, sans auth (le lien est
     // partagé au payeur final, qui n'a pas forcément de compte Buudi) ---
     Route::get('/payment-requests/{token}', [PaymentRequestController::class, 'show']);
+
+    // --- SUPERMARCHÉS : catalogue public, consultable avant connexion,
+    // même logique que /payment-requests/{token} ci-dessus ---
+    Route::get('/supermarkets', [SupermarketController::class, 'index']);
+    Route::get('/supermarkets/{id}/products', [SupermarketController::class, 'products']);
 });
 
 // ==========================================

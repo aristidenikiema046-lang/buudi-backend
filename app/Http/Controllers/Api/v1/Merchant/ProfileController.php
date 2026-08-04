@@ -59,6 +59,8 @@ class ProfileController extends Controller
             'business_name' => 'sometimes|string|max:255',
             'business_type' => 'sometimes|nullable|string|max:255',
             'business_address' => 'sometimes|nullable|string|max:255',
+            'business_latitude' => 'sometimes|nullable|numeric|between:-90,90',
+            'business_longitude' => 'sometimes|nullable|numeric|between:-180,180',
             'business_phone' => 'sometimes|nullable|string|max:20',
         ]);
 
@@ -126,7 +128,7 @@ class ProfileController extends Controller
         $merchantProfile = $user->merchantProfile;
         if ($merchantProfile) {
             $businessUpdates = [];
-            foreach (['business_name', 'business_type', 'business_address', 'business_phone'] as $field) {
+            foreach (['business_name', 'business_type', 'business_address', 'business_latitude', 'business_longitude', 'business_phone'] as $field) {
                 if ($request->has($field)) {
                     $businessUpdates[$field] = $request->$field;
                 }
