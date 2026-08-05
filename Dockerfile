@@ -56,6 +56,9 @@ COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 # ./public : au demarrage, le service "app" partage ./public avec nginx via un
 # volume nomme, qui sinon garderait le contenu perime d'un deploiement
 # precedent au lieu de celui de cette image. Voir docker/entrypoint.sh.
+RUN php artisan filament:assets \
+    && php artisan livewire:publish --assets --no-interaction
+
 RUN cp -a public public-dist \
     && chmod +x /usr/local/bin/entrypoint.sh \
     && chown -R www-data:www-data storage bootstrap/cache public-dist
