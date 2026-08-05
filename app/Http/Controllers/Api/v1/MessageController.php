@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Jobs\CreateNotificationJob;
 use App\Jobs\WriteMessageRtdbSignal;
 use App\Models\Message;
+use App\Models\Notification;
 use App\Models\Ride;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -122,6 +125,111 @@ class MessageController extends Controller
         return response()->json([
             'success' => true,
             'data' => $messages,
+        ], 200);
+    }
+
+    /**
+     * GET /v1/conversations — Une ligne par course où l'utilisateur connecté
+     * a échangé au moins un message (passager ou chauffeur), avec le dernier
+     * message et le compteur de notifications 'new_message' non lues pour
+     * cette course. 3 requêtes au total, indépendamment du nombre de
+     * conversations : les rides, le dernier message par ride (DISTINCT ON,
+     * spécifique Postgres) et les compteurs non lus groupés par ride.
+     */
+    public function conversations(Request $request)
+    {
+        $userId = Auth::id();
+
+        $rides = Ride::where(function ($q) use ($userId) {
+                $q->where('passenger_id', $userId)->orWhere('driver_id', $userId);
+            })
+            ->whereHas('messages')
+            ->with(['passenger', 'driver'])
+            ->get();
+
+        if ($rides->isEmpty()) {
+            return response()->json(['success' => true, 'data' => []], 200);
+        }
+
+        $rideIds = $rides->pluck('id')->all();
+
+        $lastMessages = DB::table('messages')
+            ->select(DB::raw('DISTINCT ON (ride_id) ride_id, content, sender_role, created_at'))
+            ->whereIn('ride_id', $rideIds)
+            ->orderBy('ride_id')
+            ->orderByDesc('created_at')
+            ->get()
+            ->keyBy('ride_id');
+
+        // Le destinataire d'une notification 'new_message' est toujours un
+        // participant de la course concernée (voir store() ci-dessus) : pas
+        // besoin de refiltrer par $rideIds, le where user_id+type+read_at
+        // suffit à ne balayer qu'un petit ensemble de lignes par utilisateur.
+        $unreadCounts = DB::table('notifications')
+            ->select(DB::raw("data->>'ride_id' as ride_id"), DB::raw('count(*) as cnt'))
+            ->where('user_id', $userId)
+            ->where('type', 'new_message')
+            ->whereNull('read_at')
+            ->groupBy(DB::raw("data->>'ride_id'"))
+            ->pluck('cnt', 'ride_id');
+
+        $conversations = $rides->map(function (Ride $ride) use ($userId, $lastMessages, $unreadCounts) {
+            $last = $lastMessages->get($ride->id);
+            $otherUser = $userId === $ride->passenger_id ? $ride->driver : $ride->passenger;
+
+            return [
+                'ride_id' => $ride->id,
+                'service_type' => $ride->service_type,
+                'ride_status' => $ride->status,
+                'other_participant' => $otherUser ? [
+                    'id' => $otherUser->id,
+                    'name' => $otherUser->name,
+                    'role' => $otherUser->role,
+                ] : null,
+                'last_message' => [
+                    'content' => Str::limit($last->content, 100),
+                    'sender_role' => $last->sender_role,
+                    'created_at' => Carbon::parse($last->created_at)->toJSON(),
+                ],
+                'unread_count' => (int) ($unreadCounts[$ride->id] ?? 0),
+                'sort_key' => $last->created_at,
+            ];
+        })
+            ->sortByDesc('sort_key')
+            ->values()
+            ->map(function ($conversation) {
+                unset($conversation['sort_key']);
+                return $conversation;
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $conversations,
+        ], 200);
+    }
+
+    /**
+     * POST /v1/rides/{ride}/messages/mark-read — Marque toutes les
+     * notifications 'new_message' non lues de cette course comme lues pour
+     * l'utilisateur connecté. Appelé côté app à l'ouverture du ChatScreen.
+     */
+    public function markRead(Request $request, string $rideId)
+    {
+        $auth = $this->authorizeRideParticipant($rideId);
+        if (isset($auth['error'])) {
+            return $auth['error'];
+        }
+        $ride = $auth['ride'];
+
+        Notification::where('user_id', Auth::id())
+            ->where('type', 'new_message')
+            ->where('data->ride_id', $ride->id)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Conversation marquée comme lue.',
         ], 200);
     }
 }
