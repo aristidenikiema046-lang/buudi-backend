@@ -113,6 +113,27 @@ class DriverProfileController extends Controller
                     'message' => 'Votre compte est bloqué. Vous avez une dette sur commission impayée depuis plus de 24 heures.'
                 ], 403);
             }
+
+            // 4. Vérification : permis et assurance pas expirés. Ces deux
+            // colonnes sont nullable (aucun écran Flutter ne saisit encore la
+            // date à l'inscription — remplie par un admin lors de la
+            // vérification du dossier), donc un chauffeur sans date connue
+            // n'est jamais bloqué par cette règle.
+            if ($driverProfile->license_expires_at && $driverProfile->license_expires_at->isPast()) {
+                return response()->json([
+                    'success' => false,
+                    'code'    => 'EXPIRED_LICENSE',
+                    'message' => 'Votre permis de conduire a expiré. Merci de le renouveler pour repasser en ligne.'
+                ], 403);
+            }
+
+            if ($driverProfile->insurance_expires_at && $driverProfile->insurance_expires_at->isPast()) {
+                return response()->json([
+                    'success' => false,
+                    'code'    => 'EXPIRED_INSURANCE',
+                    'message' => 'Votre assurance véhicule a expiré. Merci de la renouveler pour repasser en ligne.'
+                ], 403);
+            }
         }
 
         // Bascule de statut (True <-> False)

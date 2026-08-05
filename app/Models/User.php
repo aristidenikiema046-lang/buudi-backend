@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -14,7 +16,7 @@ use App\Models\DriverSubscription;
 use App\Models\DriverDebt;
 use App\Models\WalletTransaction;
 
-class User extends Authenticatable implements JWTSubject
+class User extends Authenticatable implements JWTSubject, FilamentUser
 {
     use HasFactory, Notifiable;
 
@@ -107,6 +109,17 @@ class User extends Authenticatable implements JWTSubject
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Accès au panel admin Filament (guard 'web', session) — indépendant du
+     * guard 'api' JWT utilisé par les apps mobiles. Même colonne role='admin'
+     * déjà utilisée par le middleware EnsureUserHasRole côté API, pas de
+     * nouvelle table ni de nouveau champ.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->role === 'admin';
     }
 
     /**

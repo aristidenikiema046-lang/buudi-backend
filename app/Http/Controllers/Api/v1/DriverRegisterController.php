@@ -30,6 +30,12 @@ class DriverRegisterController extends Controller
             'selfie' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
             'criminal_record' => 'nullable|file|mimes:pdf,jpeg,png,jpg|max:10240',
             'vehicle_image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
+            // nullable et non 'required' : le parcours chauffeur (voiture) ne
+            // collecte ni carte grise ni assurance côté Flutter aujourd'hui —
+            // les rendre obligatoires ici casserait son inscription. Le
+            // parcours livreur, qui les collecte, les impose déjà côté client.
+            'vehicle_registration' => 'nullable|file|mimes:pdf,jpeg,png,jpg|max:10240',
+            'insurance' => 'nullable|file|mimes:pdf,jpeg,png,jpg|max:10240',
             
             'vehicle_type' => 'required|string',
             'vehicle_brand' => 'required|string',
@@ -54,7 +60,7 @@ class DriverRegisterController extends Controller
 
             // 3. Stockage des fichiers et génération des URLs dynamiques
             $urls = [];
-            $filesToUpload = ['profile_image', 'cni', 'license', 'selfie', 'criminal_record', 'vehicle_image'];
+            $filesToUpload = ['profile_image', 'cni', 'license', 'selfie', 'criminal_record', 'vehicle_image', 'vehicle_registration', 'insurance'];
 
             foreach ($filesToUpload as $fieldName) {
                 if ($request->hasFile($fieldName)) {
@@ -83,6 +89,8 @@ class DriverRegisterController extends Controller
                 'vehicle_plate' => $validated['vehicle_plate'],
                 'vehicle_seats' => $validated['vehicle_seats'],
                 'vehicle_image_url' => $urls['vehicle_image'],
+                'vehicle_registration_url' => $urls['vehicle_registration'],
+                'insurance_url' => $urls['insurance'],
             ]);
 
             DB::commit();

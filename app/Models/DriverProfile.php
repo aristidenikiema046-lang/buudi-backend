@@ -27,6 +27,10 @@ class DriverProfile extends Model
         'vehicle_plate',
         'vehicle_seats',
         'vehicle_image_url',
+        'vehicle_registration_url',
+        'insurance_url',
+        'license_expires_at',
+        'insurance_expires_at',
     ];
 
     /**
@@ -34,6 +38,8 @@ class DriverProfile extends Model
      */
     protected $casts = [
         'is_online' => 'boolean', // 👈 Garantit que la valeur sort sous forme de true/false
+        'license_expires_at' => 'datetime',
+        'insurance_expires_at' => 'datetime',
     ];
 
     // Relation inverse vers l'utilisateur

@@ -106,6 +106,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/merchants/pending', [AdminMerchantController::class, 'getPendingMerchants']);
             Route::post('/merchants/{id}/status', [AdminMerchantController::class, 'updateStatus']);
+            Route::post('/merchants/{id}/toggle-supermarket', [AdminMerchantController::class, 'toggleSupermarket']);
         });
 
         // --- CLIENT : PORTEFEUILLE & TRANSFERTS (rôle "client" uniquement) ---
@@ -125,6 +126,9 @@ Route::prefix('v1')->group(function () {
             // ici : elle naît plus tard, côté serveur, quand le supermarché
             // confirme (voir Merchant\OrderController::confirm).
             Route::post('/orders', [ClientOrderController::class, 'store']);
+            Route::get('/orders', [ClientOrderController::class, 'index']);
+            Route::get('/orders/{id}', [ClientOrderController::class, 'show']);
+            Route::post('/orders/{id}/cancel', [ClientOrderController::class, 'cancel']);
 
             Route::get('/profile', [ProfileController::class, 'show']);
             Route::put('/profile', [ProfileController::class, 'update']);
@@ -150,6 +154,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/orders', [MerchantOrderController::class, 'index']);
             Route::post('/orders/{id}/confirm', [MerchantOrderController::class, 'confirm']);
+            Route::post('/orders/{id}/cancel', [MerchantOrderController::class, 'cancel']);
         });
 
         // Paiement wallet-à-wallet d'une demande de paiement — pas sous

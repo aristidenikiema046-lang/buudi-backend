@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\v1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\CreateNotificationJob;
 use App\Models\MerchantProfile;
+use App\Services\MerchantApprovalService;
 use Illuminate\Http\Request;
 
 class AdminMerchantController extends Controller
@@ -27,7 +27,7 @@ class AdminMerchantController extends Controller
     /**
      * 2. Approuver ou rejeter le dossier d'un commerçant
      */
-    public function updateStatus(Request $request, $id)
+    public function updateStatus(Request $request, $id, MerchantApprovalService $approvalService)
     {
         $request->validate([
             'status' => 'required|in:approved,rejected',
@@ -51,27 +51,50 @@ class AdminMerchantController extends Controller
             ], 404);
         }
 
-        $merchantProfile->update([
-            'status' => $request->status,
-            'rejection_reason' => $request->rejection_reason,
-        ]);
-
-        // Notification in-app — même traitement que côté chauffeur pour la
-        // cohérence utilisateur final, même si aucune notification
-        // (email/FCM) n'existait déjà pour les marchands avant ce jour.
-        CreateNotificationJob::dispatch(
-            $merchantProfile->user_id,
-            'account_status_changed',
-            $request->status === 'approved' ? 'Compte validé' : 'Compte non validé',
-            $request->status === 'approved'
-                ? 'Votre compte commerçant a été validé.'
-                : ('Votre dossier n\'a pas été validé. Motif : ' . ($request->rejection_reason ?? 'Non spécifié')),
-            ['new_status' => $request->status]
-        );
+        $approvalService->updateStatus($merchantProfile, $request->status, $request->rejection_reason);
 
         return response()->json([
             'success' => true,
             'message' => "Le statut du commerçant a été mis à jour avec succès ({$request->status}).",
+        ], 200);
+    }
+
+    /**
+     * 3. Active/désactive le mode Supermarché d'un commerçant.
+     *
+     * Méthode séparée plutôt que fusionnée dans updateStatus() : is_supermarket
+     * est un flag produit orthogonal au cycle d'approbation KYB (pending/
+     * approved/rejected) — les mélanger forcerait à repasser "status" à
+     * chaque bascule, avec le risque de l'écraser par erreur.
+     *
+     * Valeur explicite en body plutôt qu'un vrai flip aveugle : plus sûr si
+     * deux appels partent en parallèle (pas de double-flip qui s'annule).
+     */
+    public function toggleSupermarket(Request $request, $id)
+    {
+        $request->validate([
+            'is_supermarket' => 'required|boolean',
+        ]);
+
+        $merchantProfile = MerchantProfile::where('id', $id)
+            ->orWhere('user_id', $id)
+            ->first();
+
+        if (!$merchantProfile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dossier commerçant introuvable.',
+            ], 404);
+        }
+
+        $merchantProfile->update(['is_supermarket' => $request->boolean('is_supermarket')]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $merchantProfile->is_supermarket
+                ? 'Compte marqué comme supermarché.'
+                : 'Statut supermarché retiré.',
+            'data' => $merchantProfile,
         ], 200);
     }
 }

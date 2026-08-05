@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\v1\Merchant;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\Order;
 use App\Models\Ride;
+use App\Services\OrderRefundService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -121,6 +123,14 @@ class OrderController extends Controller
                 'ride_id' => $ride->id,
             ]);
 
+            CreateNotificationJob::dispatch(
+                $order->client_id,
+                'order_status_changed',
+                'Commande confirmée',
+                'Votre commande a été confirmée, recherche d\'un livreur en cours.',
+                ['order_id' => $order->id, 'ride_id' => $ride->id, 'new_status' => 'confirmed']
+            );
+
             return ['order' => $order->load('ride')];
         });
 
@@ -132,6 +142,61 @@ class OrderController extends Controller
             'success' => true,
             'message' => 'Commande confirmée. Course de livraison créée, en attente d\'un chauffeur.',
             'data' => $result['order'],
+        ], 200);
+    }
+
+    /**
+     * POST /v1/merchant/orders/{id}/cancel — Le supermarché annule une
+     * commande pas encore confirmée (ex: rupture de stock découverte après
+     * paiement). Remboursé si déjà payé (OrderRefundService), notifie
+     * uniquement le client (contrairement à l'annulation côté client qui
+     * notifie les deux — ici c'est le marchand qui agit, pas la peine de
+     * se notifier lui-même).
+     */
+    public function cancel(Request $request, string $id)
+    {
+        if ($blocked = $this->requireApprovedSupermarket()) {
+            return $blocked;
+        }
+
+        $merchantProfile = Auth::user()->merchantProfile;
+
+        $order = Order::where('id', $id)
+            ->where('merchant_profile_id', $merchantProfile->id)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Commande introuvable.',
+            ], 404);
+        }
+
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette commande ne peut plus être annulée.',
+            ], 400);
+        }
+
+        $wasPaid = $order->paymentRequest && $order->paymentRequest->status === 'paid';
+
+        $order = app(OrderRefundService::class)->cancelAndRefund($order);
+
+        CreateNotificationJob::dispatch(
+            $order->client_id,
+            'order_status_changed',
+            'Commande annulée',
+            $wasPaid
+                ? 'Le supermarché a annulé votre commande. Vous avez été remboursé.'
+                : 'Le supermarché a annulé votre commande.',
+            ['order_id' => $order->id, 'new_status' => 'cancelled']
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Commande annulée.' . ($wasPaid ? ' Le client a été remboursé.' : ''),
+            'data' => $order,
         ], 200);
     }
 }

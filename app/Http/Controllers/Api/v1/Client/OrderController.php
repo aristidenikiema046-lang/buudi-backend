@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\v1\Client;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use App\Models\MerchantProfile;
 use App\Models\Order;
 use App\Models\PaymentRequest;
 use App\Models\Product;
+use App\Services\OrderRefundService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -147,5 +149,114 @@ class OrderController extends Controller
             'message' => 'Commande créée. Réglez le paiement pour que le supermarché puisse la confirmer.',
             'data' => $result['order'],
         ], 201);
+    }
+
+    /**
+     * GET /v1/client/orders — Commandes du client connecté, les plus
+     * récentes en premier.
+     */
+    public function index(Request $request)
+    {
+        $orders = Order::where('client_id', Auth::id())
+            ->with(['items', 'paymentRequest', 'ride'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders,
+        ], 200);
+    }
+
+    /**
+     * GET /v1/client/orders/{id} — Détail d'une commande, avec ses articles,
+     * son paiement et sa course de livraison une fois confirmée (le
+     * ride_id permet à l'app de brancher l'écran de suivi existant).
+     */
+    public function show(Request $request, string $id)
+    {
+        $order = Order::where('id', $id)
+            ->with(['items', 'paymentRequest', 'ride'])
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Commande introuvable.',
+            ], 404);
+        }
+
+        if ($order->client_id !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Accès refusé : cette commande ne vous appartient pas.',
+            ], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $order,
+        ], 200);
+    }
+
+    /**
+     * POST /v1/client/orders/{id}/cancel — Le client annule avant que le
+     * supermarché ait confirmé. Remboursé si déjà payé (OrderRefundService),
+     * notifie le client ET le marchand (contrairement à l'annulation d'un
+     * Ride classique où seul l'autre participant est notifié — ici les deux
+     * parties ont besoin de savoir, l'une pour son remboursement, l'autre
+     * pour ne pas préparer une commande qui n'existe plus).
+     */
+    public function cancel(Request $request, string $id)
+    {
+        $order = Order::where('id', $id)->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Commande introuvable.',
+            ], 404);
+        }
+
+        if ($order->client_id !== Auth::id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Accès refusé : cette commande ne vous appartient pas.',
+            ], 403);
+        }
+
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette commande ne peut plus être annulée.',
+            ], 400);
+        }
+
+        $wasPaid = $order->paymentRequest && $order->paymentRequest->status === 'paid';
+        $merchantUserId = $order->merchantProfile->user_id;
+
+        $order = app(OrderRefundService::class)->cancelAndRefund($order);
+
+        CreateNotificationJob::dispatch(
+            $order->client_id,
+            'order_status_changed',
+            'Commande annulée',
+            $wasPaid ? 'Votre commande a été annulée. Vous avez été remboursé.' : 'Votre commande a été annulée.',
+            ['order_id' => $order->id, 'new_status' => 'cancelled']
+        );
+
+        CreateNotificationJob::dispatch(
+            $merchantUserId,
+            'order_status_changed',
+            'Commande annulée',
+            'Le client a annulé une commande.',
+            ['order_id' => $order->id, 'new_status' => 'cancelled']
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Commande annulée.',
+            'data' => $order,
+        ], 200);
     }
 }
