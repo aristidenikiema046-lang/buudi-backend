@@ -89,6 +89,8 @@ Route::prefix('v1')->group(function () {
         // (seuls passenger_id/driver_id de la course peuvent lire/écrire).
         Route::post('/rides/{ride}/messages', [MessageController::class, 'store']);
         Route::get('/rides/{ride}/messages', [MessageController::class, 'index']);
+        Route::post('/rides/{ride}/messages/mark-read', [MessageController::class, 'markRead']);
+        Route::get('/conversations', [MessageController::class, 'conversations']);
 
         // --- NOTIFICATIONS IN-APP — communes à tous les rôles connectés,
         // pas de middleware role:... (client, driver, merchant en ont tous) ---

@@ -67,4 +67,9 @@ class Ride extends Model
     {
         return $this->hasOne(Order::class);
     }
+
+    public function messages()
+    {
+        return $this->hasMany(Message::class);
+    }
 }

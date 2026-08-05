@@ -52,6 +52,14 @@ COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache-custom.ini
 COPY docker/php/www.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# Publie les assets front des packages Composer (Filament, Livewire) dans
+# public/ avant la copie figee vers public-dist ci-dessous : sinon absents de
+# l'image, comme c'etait le cas pour Livewire (jamais publie => livewire.min.js
+# en 404 en prod, corrige a la main sur le conteneur puis perdu au rebuild
+# suivant faute d'etre dans le process de build).
+RUN php artisan filament:assets \
+    && php artisan livewire:publish --assets --no-interaction
+
 # Copie figee de public/ (assets Vite compiles inclus), en dehors du chemin
 # ./public : au demarrage, le service "app" partage ./public avec nginx via un
 # volume nomme, qui sinon garderait le contenu perime d'un deploiement

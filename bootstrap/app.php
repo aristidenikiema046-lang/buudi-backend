@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureUserHasRole::class,
         ]);
 
+        // Apache fait du reverse proxy vers Laravel sur 127.0.0.1 et transmet
+        // X-Forwarded-Proto: https — sans ça, Laravel ignore l'en-tête et
+        // génère des URLs (asset(), url()) en http://, causant du contenu
+        // mixte bloqué par le navigateur sur le panel Filament.
         $middleware->trustProxies(
             at: '127.0.0.1',
             headers: Request::HEADER_X_FORWARDED_FOR
