@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\MerchantProfiles\Schemas;
 
+use App\Filament\Support\ResolvesDocumentUrls;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -11,6 +12,8 @@ use Illuminate\Support\HtmlString;
 
 class MerchantProfileForm
 {
+    use ResolvesDocumentUrls;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -42,7 +45,7 @@ class MerchantProfileForm
                         Placeholder::make('logo_url')
                             ->label('')
                             ->content(function ($record) {
-                                $url = $record?->logo_url;
+                                $url = self::resolveDocumentUrl($record?->logo_url);
 
                                 if (!$url) {
                                     return new HtmlString('<span class="text-gray-400 text-sm">Aucun logo</span>');

@@ -60,4 +60,11 @@ class Ride extends Model
     {
         return $this->belongsTo(User::class, 'driver_id');
     }
+
+    // Inverse de Order::ride() — n'existe que pour service_type='Supermarché'
+    // et uniquement une fois la commande confirmée (order.ride_id renseigné).
+    public function order()
+    {
+        return $this->hasOne(Order::class);
+    }
 }

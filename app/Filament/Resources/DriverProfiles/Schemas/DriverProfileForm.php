@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DriverProfiles\Schemas;
 
+use App\Filament\Support\ResolvesDocumentUrls;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Schemas\Components\Section;
@@ -11,6 +12,8 @@ use Illuminate\Support\HtmlString;
 
 class DriverProfileForm
 {
+    use ResolvesDocumentUrls;
+
     /**
      * Documents affichés en lecture seule (image cliquable, ouvre l'original
      * dans un nouvel onglet). Ce ne sont que des URLs déjà publiques
@@ -22,7 +25,7 @@ class DriverProfileForm
         return Placeholder::make($field)
             ->label($label)
             ->content(function ($record) use ($field) {
-                $url = $record?->{$field};
+                $url = self::resolveDocumentUrl($record?->{$field});
 
                 if (!$url) {
                     return new HtmlString('<span class="text-gray-400 text-sm">Non fourni</span>');
