@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\CreateNotificationJob;
+use App\Support\GeoDistance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,25 +18,6 @@ use Carbon\Carbon;
 
 class DriverRideController extends Controller
 {
-    /**
-     * Distance à vol d'oiseau entre deux points GPS (formule de Haversine).
-     * Suffisant pour un MVP ; pas besoin de requête géospatiale PostGIS.
-     */
-    private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
-    {
-        $earthRadiusKm = 6371;
-
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLng = deg2rad($lng2 - $lng1);
-
-        $a = sin($dLat / 2) ** 2
-            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
-
-        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-
-        return $earthRadiusKm * $c;
-    }
-
     /**
      * Types de course qu'un véhicule donné peut honorer. Une Voiture peut
      * prendre n'importe quel niveau de VTC, une Moto/Vélo ne peut faire que
@@ -104,7 +86,7 @@ class DriverRideController extends Controller
             ->get()
             ->map(function ($ride) use ($driverLat, $driverLng) {
                 $ride->distance_km_from_driver = round(
-                    $this->distanceKm($driverLat, $driverLng, (float) $ride->pickup_latitude, (float) $ride->pickup_longitude),
+                    GeoDistance::haversineKm($driverLat, $driverLng, (float) $ride->pickup_latitude, (float) $ride->pickup_longitude),
                     2
                 );
                 return $ride;

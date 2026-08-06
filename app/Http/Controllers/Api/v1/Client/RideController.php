@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\v1\Client;
 use App\Http\Controllers\Controller;
 use App\Jobs\CreateNotificationJob;
 use App\Models\Ride;
+use App\Services\RidePricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -15,7 +16,7 @@ class RideController extends Controller
      * POST /v1/client/rides — Créer une demande de course (statut initial : pending).
      * Un chauffeur disponible pourra ensuite l'accepter via DriverRideController::acceptRide.
      */
-    public function store(Request $request)
+    public function store(Request $request, RidePricingService $pricingService)
     {
         $validator = Validator::make($request->all(), [
             'pickup_lat' => 'required|numeric',
@@ -48,6 +49,30 @@ class RideController extends Controller
             ], 422);
         }
 
+        // Le prix est recalculé côté serveur pour toute course VTC (pas la
+        // Livraison, dont la logistique/tarification n'est pas encore gérée
+        // ici) : estimated_price du client ne sert plus qu'à détecter les
+        // écarts suspects (RidePricingService::logIfMismatch), il est ignoré
+        // pour le prix final facturé.
+        if ($request->service_type === 'Livraison') {
+            $price = $request->estimated_price;
+            $distanceKm = $request->estimated_distance_km;
+            $durationMin = $request->estimated_duration_min;
+        } else {
+            $pricing = $pricingService->calculate(
+                $request->service_type,
+                (float) $request->pickup_lat,
+                (float) $request->pickup_lng,
+                (float) $request->destination_lat,
+                (float) $request->destination_lng,
+                (float) $request->estimated_price
+            );
+
+            $price = $pricing['price'];
+            $distanceKm = $pricing['distance_km'];
+            $durationMin = $pricing['duration_min'];
+        }
+
         $ride = Ride::create([
             'passenger_id' => Auth::id(),
             'pickup_address' => $request->pickup_address,
@@ -57,9 +82,9 @@ class RideController extends Controller
             'destination_latitude' => $request->destination_lat,
             'destination_longitude' => $request->destination_lng,
             'service_type' => $request->service_type,
-            'price' => $request->estimated_price,
-            'distance_km' => $request->estimated_distance_km,
-            'duration_min' => $request->estimated_duration_min,
+            'price' => $price,
+            'distance_km' => $distanceKm,
+            'duration_min' => $durationMin,
             'payment_method' => $request->payment_method,
             'status' => 'pending',
             'recipient_name' => $request->recipient_name,
