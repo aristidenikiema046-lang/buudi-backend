@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CreateNotificationJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Models\DriverSubscription;
-use App\Models\DriverDebt;
+use App\Models\Transaction;
+use App\Models\Wallet;
+use App\Services\DriverEligibilityService;
 
 class DriverProfileController extends Controller
 {
@@ -63,7 +67,7 @@ class DriverProfileController extends Controller
     /**
      * Basculer le statut du chauffeur (En ligne / Hors ligne) avec contrôles financiers
      */
-    public function toggleOnlineStatus(Request $request)
+    public function toggleOnlineStatus(Request $request, DriverEligibilityService $eligibility)
     {
         $user = Auth::user();
         $driverProfile = $user->driverProfile;
@@ -83,56 +87,17 @@ class DriverProfileController extends Controller
             ], 403);
         }
 
-        // Si le chauffeur essaye de passer EN LIGNE (is_online est actuellement false)
+        // Si le chauffeur essaye de passer EN LIGNE (is_online est actuellement false) :
+        // abonnement actif, pas de dette expirée, documents valides. Même logique que
+        // celle utilisée par DriverRideController::getPendingRides()/acceptRide() (voir
+        // DriverEligibilityService) — 'approved' est revérifié ici sans coût (profil déjà
+        // chargé en mémoire), la vérification ci-dessus reste inchangée pour ne rien
+        // modifier au comportement de sortie de ligne (is_online -> false, jamais bloqué
+        // par ces règles financières).
         if (!$driverProfile->is_online) {
-
-            // 2. Vérification : Abonnement actif de 2000 F / 24h
-            $hasActiveSubscription = DriverSubscription::where('driver_id', $user->id)
-                ->where('status', 'active')
-                ->where('expires_at', '>', now())
-                ->exists();
-
-            if (!$hasActiveSubscription) {
-                return response()->json([
-                    'success' => false,
-                    'code'    => 'SUBSCRIPTION_REQUIRED',
-                    'message' => 'Veuillez payer vos frais d\'activation de 2 000 FCFA/jour pour passer en ligne.'
-                ], 402); // 402 Payment Required
-            }
-
-            // 3. Vérification : Pas de dette expirée (> 24h) sur les commissions espèces
-            $hasExpiredDebt = DriverDebt::where('driver_id', $user->id)
-                ->where('is_paid', false)
-                ->where('due_date', '<', now())
-                ->exists();
-
-            if ($hasExpiredDebt) {
-                return response()->json([
-                    'success' => false,
-                    'code'    => 'EXPIRED_DEBT',
-                    'message' => 'Votre compte est bloqué. Vous avez une dette sur commission impayée depuis plus de 24 heures.'
-                ], 403);
-            }
-
-            // 4. Vérification : permis et assurance pas expirés. Ces deux
-            // colonnes sont nullable (aucun écran Flutter ne saisit encore la
-            // date à l'inscription — remplie par un admin lors de la
-            // vérification du dossier), donc un chauffeur sans date connue
-            // n'est jamais bloqué par cette règle.
-            if ($driverProfile->license_expires_at && $driverProfile->license_expires_at->isPast()) {
-                return response()->json([
-                    'success' => false,
-                    'code'    => 'EXPIRED_LICENSE',
-                    'message' => 'Votre permis de conduire a expiré. Merci de le renouveler pour repasser en ligne.'
-                ], 403);
-            }
-
-            if ($driverProfile->insurance_expires_at && $driverProfile->insurance_expires_at->isPast()) {
-                return response()->json([
-                    'success' => false,
-                    'code'    => 'EXPIRED_INSURANCE',
-                    'message' => 'Votre assurance véhicule a expiré. Merci de la renouveler pour repasser en ligne.'
-                ], 403);
+            $check = $eligibility->checkCanGoOnline($user);
+            if (isset($check['error'])) {
+                return $check['error'];
             }
         }
 
@@ -169,19 +134,58 @@ class DriverProfileController extends Controller
             ], 400);
         }
 
-        // 2. Création de l'abonnement actif pour 24h
-        DriverSubscription::create([
-            'driver_id' => $user->id,
-            'amount'    => 2000,
-            'status'    => 'active',
-            'starts_at' => now(),
-            'expires_at' => now()->addHours(24),
-        ]);
+        // 2. Débit du wallet (même pattern que WalletController::withdraw()) puis
+        // création de l'abonnement, dans la même transaction : si le solde est
+        // insuffisant, rien n'est créé (rollback via l'exception).
+        try {
+            $subscription = DB::transaction(function () use ($user) {
+                $wallet = Wallet::where('user_id', $user->id)->lockForUpdate()->first();
+
+                if (!$wallet || $wallet->balance < 2000) {
+                    throw new \RuntimeException('INSUFFICIENT_FUNDS');
+                }
+
+                $wallet->decrement('balance', 2000);
+
+                Transaction::create([
+                    'wallet_id'   => $wallet->id,
+                    'amount'      => 2000,
+                    'type'        => 'debit',
+                    'category'    => 'subscription',
+                    'description' => 'Pass journalier chauffeur (24h)',
+                    'status'      => 'completed',
+                ]);
+
+                return DriverSubscription::create([
+                    'driver_id'   => $user->id,
+                    'amount_paid' => 2000,
+                    'status'      => 'active',
+                    'starts_at'   => now(),
+                    'expires_at'  => now()->addHours(24),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'INSUFFICIENT_FUNDS') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solde insuffisant pour payer le pass journalier (2 000 FCFA requis).',
+                ], 400);
+            }
+            throw $e;
+        }
+
+        CreateNotificationJob::dispatch(
+            $user->id,
+            'wallet_transaction',
+            'Pass journalier activé',
+            'Votre pass journalier de 2 000 FCFA a été activé pour 24h.',
+            ['subscription_id' => $subscription->id]
+        );
 
         return response()->json([
             'success' => true,
             'message' => 'Pass journalier de 2 000 FCFA activé avec succès pour 24h !',
-            'expires_at' => now()->addHours(24)->toIso8601String(),
+            'expires_at' => $subscription->expires_at->toIso8601String(),
         ], 200);
     }
 }

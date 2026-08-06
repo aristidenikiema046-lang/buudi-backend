@@ -9,3 +9,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('drivers:check-document-expiry')->daily();
+
+// Contrairement aux documents (échéance à la journée), la règle métier
+// exige une déconnexion "immédiate" à l'expiration du pass 24h — fréquence
+// la plus courte que le scheduler standard supporte nativement.
+Schedule::command('drivers:enforce-subscription-expiry')->everyFiveMinutes();

@@ -12,6 +12,7 @@ use App\Models\Ride;
 use App\Models\Wallet;
 use App\Models\Transaction;
 use App\Models\DriverDebt;
+use App\Services\DriverEligibilityService;
 use Carbon\Carbon;
 
 class DriverRideController extends Controller
@@ -63,7 +64,7 @@ class DriverRideController extends Controller
      * de latitude/longitude), elle doit être envoyée à chaque appel via les
      * query params ?lat=...&lng=....
      */
-    public function getPendingRides(Request $request)
+    public function getPendingRides(Request $request, DriverEligibilityService $eligibility)
     {
         $validator = Validator::make($request->all(), [
             'lat' => 'required|numeric|between:-90,90',
@@ -79,7 +80,12 @@ class DriverRideController extends Controller
             ], 422);
         }
 
-        $vehicleType = Auth::user()->driverProfile->vehicle_type ?? null;
+        $check = $eligibility->checkCanWork(Auth::user());
+        if (isset($check['error'])) {
+            return $check['error'];
+        }
+
+        $vehicleType = $check['driver_profile']->vehicle_type ?? null;
         $allowedServiceTypes = $this->allowedServiceTypesFor($vehicleType);
 
         if (empty($allowedServiceTypes)) {
@@ -203,9 +209,14 @@ class DriverRideController extends Controller
      * avant de lire le statut — il voit donc forcément "accepted" et non
      * "pending", et se fait rejeter proprement au lieu d'écraser le premier.
      */
-    public function acceptRide($id)
+    public function acceptRide($id, DriverEligibilityService $eligibility)
     {
         $user = Auth::user();
+
+        $check = $eligibility->checkCanWork($user);
+        if (isset($check['error'])) {
+            return $check['error'];
+        }
 
         $result = DB::transaction(function () use ($id, $user) {
             $ride = Ride::where('id', $id)->lockForUpdate()->first();
