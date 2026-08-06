@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\EmailVerification;
 use App\Mail\VerifyEmailOtp;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
@@ -50,6 +51,12 @@ class AuthController extends Controller
 
         // Génération du token JWT pour la connexion
         $token = JWTAuth::fromUser($user);
+
+        // Chargée pour tous les rôles sans distinction : un client n'aura
+        // simplement ni l'une ni l'autre (relation null), et l'app mobile
+        // (driver comme merchant) a besoin du statut d'approbation dès la
+        // réponse de connexion, sans appel supplémentaire.
+        $user->load(['driverProfile', 'merchantProfile']);
 
         return response()->json([
             'success' => true,
@@ -187,5 +194,27 @@ class AuthController extends Controller
             'token'   => $token,
             'user'    => $user
         ], 201);
+    }
+
+    // --- MISE À JOUR DU TOKEN FCM (notifications push) ---
+    public function updateFcmToken(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'fcm_token' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = Auth::user();
+        $user->fcm_token = $request->fcm_token;
+        $user->save();
+
+        return response()->json(['success' => true], 200);
     }
 }
