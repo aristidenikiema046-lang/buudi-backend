@@ -36,6 +36,7 @@ class DriverProfileController extends Controller
                 'vehicle_type' => $profile->vehicle_type ?? null,
                 'vehicle_model' => $profile->vehicle_model ?? $profile->vehicle ?? 'Véhicule non renseigné',
                 'plate_number' => $profile->plate_number ?? '--------',
+                'profile_image_url' => $profile->profile_image_url ?? null,
                 // null tant qu'aucun avis n'existe (rating_count = 0) — pas de
                 // note fictive par défaut, voir RideReview::recalculateRatingFor().
                 'rating_average' => $profile->rating_average ?? null,
