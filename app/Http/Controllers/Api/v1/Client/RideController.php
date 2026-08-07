@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Jobs\CreateNotificationJob;
 use App\Jobs\RidePendingSignal;
 use App\Models\Ride;
+use App\Models\RideReview;
 use App\Services\RidePricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class RideController extends Controller
@@ -174,5 +176,85 @@ class RideController extends Controller
             'message' => 'Course annulée.',
             'data' => $ride,
         ], 200);
+    }
+
+    /**
+     * POST /v1/client/rides/{id}/review — Le passager note le chauffeur/
+     * livreur après une course terminée. Un seul avis par course (contrainte
+     * unique sur ride_reviews.ride_id, vérifiée aussi explicitement ici pour
+     * un message propre plutôt que de laisser remonter l'erreur SQL brute).
+     */
+    public function review(Request $request, string $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'rating' => 'required|integer|between:1,5',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $ride = Ride::where('id', $id)
+            ->where('passenger_id', Auth::id())
+            ->first();
+
+        if (!$ride) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Course introuvable.',
+            ], 404);
+        }
+
+        if ($ride->status !== 'completed') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette course n\'est pas encore terminée.',
+            ], 400);
+        }
+
+        if (!$ride->driver_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucun chauffeur associé à cette course.',
+            ], 400);
+        }
+
+        if (RideReview::where('ride_id', $ride->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette course a déjà été notée.',
+            ], 400);
+        }
+
+        $review = DB::transaction(function () use ($ride, $request) {
+            $review = RideReview::create([
+                'ride_id' => $ride->id,
+                'reviewed_user_id' => $ride->driver_id,
+                'reviewer_id' => Auth::id(),
+                'rating' => $request->rating,
+                'comment' => $request->comment,
+            ]);
+
+            RideReview::recalculateRatingFor($ride->driver_id);
+
+            return $review;
+        });
+
+        $driverProfile = $ride->driver->driverProfile;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Merci pour votre avis !',
+            'data' => [
+                'review' => $review,
+                'driver_rating_average' => $driverProfile->rating_average,
+                'driver_rating_count' => $driverProfile->rating_count,
+            ],
+        ], 201);
     }
 }

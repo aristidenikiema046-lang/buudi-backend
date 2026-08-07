@@ -34,6 +34,8 @@ class DriverProfile extends Model
         'last_latitude',
         'last_longitude',
         'last_location_at',
+        'rating_average',
+        'rating_count',
     ];
 
     /**
@@ -46,6 +48,8 @@ class DriverProfile extends Model
         'last_latitude' => 'decimal:7',
         'last_longitude' => 'decimal:7',
         'last_location_at' => 'datetime',
+        'rating_average' => 'decimal:2',
+        'rating_count' => 'integer',
     ];
 
     // Relation inverse vers l'utilisateur

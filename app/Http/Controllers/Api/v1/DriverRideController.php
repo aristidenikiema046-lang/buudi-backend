@@ -130,6 +130,27 @@ class DriverRideController extends Controller
     }
 
     /**
+     * GET /v1/driver/rides/history — courses/livraisons terminées du chauffeur,
+     * les plus récentes d'abord. Même filtre que le compteur "today_rides_count"
+     * de getDashboard(), sans la restriction "aujourd'hui".
+     */
+    public function getRideHistory(Request $request)
+    {
+        $user = Auth::user();
+
+        $rides = Ride::where('driver_id', $user->id)
+            ->where('status', 'completed')
+            ->orderByDesc('completed_at')
+            ->take(20)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $rides,
+        ], 200);
+    }
+
+    /**
      * Récupère le résumé financier (Solde + Gains du jour) & Courses disponibles
      */
     public function getDashboard(Request $request)

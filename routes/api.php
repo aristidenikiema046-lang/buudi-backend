@@ -75,6 +75,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/driver/dashboard', [DriverRideController::class, 'getDashboard'])->middleware('role:driver');
         Route::get('/driver/active-ride', [DriverRideController::class, 'getActiveRide'])->middleware('role:driver');
         Route::get('/driver/rides/pending', [DriverRideController::class, 'getPendingRides'])->middleware('role:driver');
+        Route::get('/driver/rides/history', [DriverRideController::class, 'getRideHistory'])->middleware('role:driver');
         Route::post('/driver/rides/{id}/accept', [DriverRideController::class, 'acceptRide'])->middleware('role:driver');
         Route::post('/driver/rides/{id}/arrive', [DriverRideController::class, 'arriveAtPickup'])->middleware('role:driver');
         Route::post('/driver/rides/{id}/start', [DriverRideController::class, 'startRide'])->middleware('role:driver');
@@ -124,6 +125,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/rides', [RideController::class, 'store']);
             Route::get('/rides/{id}', [RideController::class, 'show']);
             Route::post('/rides/{id}/cancel', [RideController::class, 'cancel']);
+            Route::post('/rides/{id}/review', [RideController::class, 'review']);
 
             // Commande Supermarché — la course de livraison n'est PAS créée
             // ici : elle naît plus tard, côté serveur, quand le supermarché
