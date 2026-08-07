@@ -64,4 +64,13 @@ class EditDriverProfile extends EditRecord
     {
         return 'Dates de validité mises à jour.';
     }
+
+    // Par défaut Filament utilise $modelLabel ("chauffeur") pour le titre
+    // ET le dernier maillon du breadcrumb (voir InteractsWithRecord::
+    // getRecordTitle() dans le vendor) — figé quel que soit le profil
+    // affiché. On le rend dynamique ici pour corriger les deux d'un coup.
+    public function getRecordTitle(): string
+    {
+        return DriverProfileResource::roleLabel($this->getRecord()->vehicle_type);
+    }
 }

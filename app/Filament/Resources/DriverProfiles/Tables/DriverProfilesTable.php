@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DriverProfiles\Tables;
 
+use App\Filament\Resources\DriverProfiles\DriverProfileResource;
 use App\Services\DriverApprovalService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -21,6 +22,11 @@ class DriverProfilesTable
                     ->label('Nom')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('vehicle_type')
+                    ->label('Type')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => DriverProfileResource::roleLabel($state))
+                    ->color(fn (?string $state) => DriverProfileResource::roleLabel($state) === 'Chauffeur' ? 'info' : 'gray'),
                 TextColumn::make('status')
                     ->label('Statut')
                     ->badge()

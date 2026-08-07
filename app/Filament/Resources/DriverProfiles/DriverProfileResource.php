@@ -25,6 +25,18 @@ class DriverProfileResource extends Resource
 
     protected static ?string $pluralModelLabel = 'chauffeurs';
 
+    /**
+     * chauffeurs et livreurs partagent driver_profiles, distingués uniquement
+     * par vehicle_type (voir DriverRideController::allowedServiceTypesFor()
+     * pour le mapping inverse côté API) — seul point de mapping du libellé
+     * affiché, utilisé par le titre Edit, la section du formulaire et la
+     * colonne "Type" de la Liste. Ne pas dupliquer ce match() ailleurs.
+     */
+    public static function roleLabel(?string $vehicleType): string
+    {
+        return in_array($vehicleType, ['Moto', 'Vélo'], true) ? 'Livreur' : 'Chauffeur';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return DriverProfileForm::configure($schema);

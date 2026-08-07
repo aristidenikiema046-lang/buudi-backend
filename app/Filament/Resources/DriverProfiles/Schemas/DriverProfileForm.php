@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DriverProfiles\Schemas;
 
+use App\Filament\Resources\DriverProfiles\DriverProfileResource;
 use App\Filament\Support\ResolvesDocumentUrls;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
@@ -43,7 +44,7 @@ class DriverProfileForm
     {
         return $schema
             ->components([
-                Section::make('Chauffeur')
+                Section::make(fn ($record) => DriverProfileResource::roleLabel($record?->vehicle_type))
                     ->columns(3)
                     ->schema([
                         Placeholder::make('user.name')->label('Nom')
