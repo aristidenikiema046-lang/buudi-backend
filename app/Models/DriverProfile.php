@@ -31,6 +31,9 @@ class DriverProfile extends Model
         'insurance_url',
         'license_expires_at',
         'insurance_expires_at',
+        'last_latitude',
+        'last_longitude',
+        'last_location_at',
     ];
 
     /**
@@ -40,6 +43,9 @@ class DriverProfile extends Model
         'is_online' => 'boolean', // 👈 Garantit que la valeur sort sous forme de true/false
         'license_expires_at' => 'datetime',
         'insurance_expires_at' => 'datetime',
+        'last_latitude' => 'decimal:7',
+        'last_longitude' => 'decimal:7',
+        'last_location_at' => 'datetime',
     ];
 
     // Relation inverse vers l'utilisateur

@@ -7,6 +7,7 @@ use App\Jobs\CreateNotificationJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use App\Models\DriverSubscription;
 use App\Models\Transaction;
 use App\Models\Wallet;
@@ -112,6 +113,48 @@ class DriverProfileController extends Controller
                 'is_online' => $driverProfile->is_online
             ]
         ], 200);
+    }
+
+    /**
+     * POST /v1/driver/location — Reçoit la position courante du chauffeur
+     * (appelé toutes les 5s tant qu'il est en ligne, côté app). Alimentera
+     * la Phase 3 (cascade de dispatch par proximité) via last_latitude/
+     * last_longitude/last_location_at sur driver_profiles. Volontairement
+     * minimal : pas de vérification d'éligibilité ici (ce n'est pas une
+     * action métier, juste un signal de position best-effort), la fréquence
+     * d'appel impose de rester rapide.
+     */
+    public function updateLocation(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $driverProfile = Auth::user()->driverProfile;
+
+        if (!$driverProfile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Profil chauffeur introuvable.',
+            ], 404);
+        }
+
+        $driverProfile->update([
+            'last_latitude' => $request->latitude,
+            'last_longitude' => $request->longitude,
+            'last_location_at' => now(),
+        ]);
+
+        return response()->json(['success' => true], 200);
     }
 
     /**

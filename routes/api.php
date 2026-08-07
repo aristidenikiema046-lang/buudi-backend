@@ -69,6 +69,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/driver/status', [DriverProfileController::class, 'checkStatus'])->middleware('role:driver');
         Route::post('/driver/toggle-status', [DriverProfileController::class, 'toggleOnlineStatus'])->middleware('role:driver');
         Route::post('/driver/buy-pass', [DriverProfileController::class, 'buyPass'])->middleware('role:driver');
+        Route::post('/driver/location', [DriverProfileController::class, 'updateLocation'])->middleware('role:driver');
 
         // --- DASHBOARD & COURSES (v1) — rôle "driver" uniquement ---
         Route::get('/driver/dashboard', [DriverRideController::class, 'getDashboard'])->middleware('role:driver');
