@@ -8,6 +8,7 @@ use App\Support\GeoDistance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Ride;
 use App\Models\Wallet;
@@ -409,13 +410,26 @@ class DriverRideController extends Controller
         else {
             $commissionAmount = $ride->price * 0.15; // 15% de commission
 
-            DriverDebt::create([
-                'driver_id' => $user->id,
-                'ride_id'   => $ride->id,
-                'amount'    => $commissionAmount,
-                'is_paid'   => false,
-                'due_date'  => now()->addHours(24), // Exigible sous 24h
-            ]);
+            // La course est déjà marquée completed ci-dessus (pas de transaction
+            // englobante) : un problème sur le suivi de la dette ne doit jamais
+            // priver le chauffeur de sa confirmation de fin de course. On logue
+            // pour rattrapage manuel plutôt que de faire échouer la réponse.
+            try {
+                DriverDebt::create([
+                    'driver_id'         => $user->id,
+                    'ride_id'           => $ride->id,
+                    'commission_amount' => $commissionAmount,
+                    'is_paid'           => false,
+                    'due_date'          => now()->addHours(24), // Exigible sous 24h
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Échec de création DriverDebt (commission course cash).', [
+                    'ride_id' => $ride->id,
+                    'driver_id' => $user->id,
+                    'commission_amount' => $commissionAmount,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
         }
 
         CreateNotificationJob::dispatch(
