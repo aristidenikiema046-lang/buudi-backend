@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\v1\Client;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\CreateNotificationJob;
+use App\Jobs\RidePendingSignal;
 use App\Models\Ride;
 use App\Services\RidePricingService;
 use Illuminate\Http\Request;
@@ -94,6 +95,8 @@ class RideController extends Controller
             'package_code' => $request->package_code,
             'delivery_instructions' => $request->delivery_instructions,
         ]);
+
+        RidePendingSignal::dispatch($ride->service_type);
 
         return response()->json([
             'success' => true,

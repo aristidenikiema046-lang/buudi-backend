@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\v1\Merchant;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\CreateNotificationJob;
+use App\Jobs\RidePendingSignal;
 use App\Models\Order;
 use App\Models\Ride;
 use App\Services\OrderRefundService;
@@ -130,6 +131,8 @@ class OrderController extends Controller
                 'Votre commande a été confirmée, recherche d\'un livreur en cours.',
                 ['order_id' => $order->id, 'ride_id' => $ride->id, 'new_status' => 'confirmed']
             );
+
+            RidePendingSignal::dispatch($ride->service_type);
 
             return ['order' => $order->load('ride')];
         });
