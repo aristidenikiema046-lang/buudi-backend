@@ -14,6 +14,7 @@ use App\Models\Ride;
 use App\Models\Wallet;
 use App\Models\Transaction;
 use App\Models\DriverDebt;
+use App\Models\RideReview;
 use App\Services\DriverEligibilityService;
 use Carbon\Carbon;
 
@@ -151,6 +152,112 @@ class DriverRideController extends Controller
     }
 
     /**
+     * Bornes [début, maintenant[ pour une période "jusqu'à maintenant" —
+     * calendaire (lundi-dimanche pour la semaine), pas glissante. Utilisée
+     * par getDashboard() (period=day) et getEarnings().
+     */
+    private function periodBounds(string $period): array
+    {
+        $now = Carbon::now();
+
+        $from = match ($period) {
+            'day' => $now->copy()->startOfDay(),
+            'week' => $now->copy()->startOfWeek(),
+            'month' => $now->copy()->startOfMonth(),
+            'year' => $now->copy()->startOfYear(),
+        };
+
+        return [$from, $now];
+    }
+
+    /**
+     * Gains bruts/nets sur une période, à partir des courses complétées
+     * (Ride.price), pas des Transaction créditées — ces dernières ratent
+     * entièrement les courses cash (aucun crédit wallet n'est créé pour
+     * elles, voir completeRide()). Le net soustrait la commission_amount
+     * réellement enregistrée dans driver_debts pour ces courses (pas un
+     * recalcul de 15% en dur une deuxième part : la valeur persistée fait
+     * foi, y compris pour les rides cash historiques sans dette enregistrée
+     * — le bug commission_amount corrigé plus tôt cette session — où net
+     * vaut alors gross, ce qui reflète honnêtement qu'aucune commission n'a
+     * réellement été trackée pour elles).
+     */
+    private function calculateEarnings(string $driverId, Carbon $from, Carbon $to): array
+    {
+        $rides = Ride::where('driver_id', $driverId)
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', [$from, $to])
+            ->get(['id', 'price']);
+
+        $grossEarnings = (float) $rides->sum('price');
+        $commissionSum = (float) DriverDebt::whereIn('ride_id', $rides->pluck('id'))->sum('commission_amount');
+
+        return [
+            'rides_count' => $rides->count(),
+            'gross_earnings' => $grossEarnings,
+            'net_earnings' => $grossEarnings - $commissionSum,
+        ];
+    }
+
+    /**
+     * GET /v1/driver/earnings?period=day|week|month|year
+     */
+    public function getEarnings(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'period' => 'required|string|in:day,week,month,year',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        [$from, $to] = $this->periodBounds($request->period);
+        $earnings = $this->calculateEarnings(Auth::id(), $from, $to);
+
+        return response()->json([
+            'success' => true,
+            'data' => array_merge([
+                'period' => $request->period,
+                'from' => $from->toIso8601String(),
+                'to' => $to->toIso8601String(),
+            ], $earnings),
+        ], 200);
+    }
+
+    /**
+     * GET /v1/driver/rides/{id}/review — Avis laissé par le client sur cette
+     * course précise, pour l'écran de fin de livraison. null si pas encore
+     * noté (état normal juste après complétion, pas une erreur).
+     */
+    public function getRideReview(Request $request, string $id)
+    {
+        $ride = Ride::where('id', $id)->where('driver_id', Auth::id())->first();
+
+        if (!$ride) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Course introuvable.',
+            ], 404);
+        }
+
+        $review = RideReview::where('ride_id', $ride->id)->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => $review ? [
+                'rating' => $review->rating,
+                'comment' => $review->comment,
+                'created_at' => $review->created_at,
+            ] : null,
+        ], 200);
+    }
+
+    /**
      * Récupère le résumé financier (Solde + Gains du jour) & Courses disponibles
      */
     public function getDashboard(Request $request)
@@ -163,18 +270,12 @@ class DriverRideController extends Controller
             ['balance' => 0.00]
         );
 
-        // 2. Gains du jour (Total des crédits de type ride_earning aujourd'hui)
-        $todayEarnings = Transaction::where('wallet_id', $wallet->id)
-            ->where('type', 'credit')
-            ->where('category', 'ride_earning')
-            ->whereDate('created_at', Carbon::today())
-            ->sum('amount');
-
-        // 3. Nombre de courses réalisées aujourd'hui
-        $todayRidesCount = Ride::where('driver_id', $user->id)
-            ->where('status', 'completed')
-            ->whereDate('completed_at', Carbon::today())
-            ->count();
+        // 2 & 3. Gains + nombre de courses aujourd'hui — même calcul que
+        // getEarnings(period=day), Ride.price (cash inclus), pas Transaction.
+        [$todayFrom, $todayTo] = $this->periodBounds('day');
+        $todayStats = $this->calculateEarnings($user->id, $todayFrom, $todayTo);
+        $todayEarnings = $todayStats['gross_earnings'];
+        $todayRidesCount = $todayStats['rides_count'];
 
         // 4. Liste des courses en attente (pending) à proximité
         $availableRides = Ride::where('status', 'pending')

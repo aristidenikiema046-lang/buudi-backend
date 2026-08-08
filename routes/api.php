@@ -73,9 +73,11 @@ Route::prefix('v1')->group(function () {
 
         // --- DASHBOARD & COURSES (v1) — rôle "driver" uniquement ---
         Route::get('/driver/dashboard', [DriverRideController::class, 'getDashboard'])->middleware('role:driver');
+        Route::get('/driver/earnings', [DriverRideController::class, 'getEarnings'])->middleware('role:driver');
         Route::get('/driver/active-ride', [DriverRideController::class, 'getActiveRide'])->middleware('role:driver');
         Route::get('/driver/rides/pending', [DriverRideController::class, 'getPendingRides'])->middleware('role:driver');
         Route::get('/driver/rides/history', [DriverRideController::class, 'getRideHistory'])->middleware('role:driver');
+        Route::get('/driver/rides/{id}/review', [DriverRideController::class, 'getRideReview'])->middleware('role:driver');
         Route::post('/driver/rides/{id}/accept', [DriverRideController::class, 'acceptRide'])->middleware('role:driver');
         Route::post('/driver/rides/{id}/arrive', [DriverRideController::class, 'arriveAtPickup'])->middleware('role:driver');
         Route::post('/driver/rides/{id}/start', [DriverRideController::class, 'startRide'])->middleware('role:driver');
